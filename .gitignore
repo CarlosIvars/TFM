@@ -1,0 +1,13 @@
+# Ignora el entorno virtual
+venv_TFM/
+
+# Ignora cachés de Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Ignora archivos temporales
+*.log
+*.sqlite3
+*.env
+*.DS_Store
