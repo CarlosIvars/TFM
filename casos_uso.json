@@ -1,0 +1,376 @@
+[
+  {
+    "caso": "Buscar un producto específico en Amazon y extraer precio, reseñas y descripción",
+    "categoria": "Comercio electrónico",
+    "pasos": [
+      "Acceder a la página principal de Amazon.",
+      "Localizar la barra de búsqueda.",
+      "Introducir el nombre exacto del producto.",
+      "Hacer clic en el botón de buscar.",
+      "Esperar a que se carguen los resultados.",
+      "Identificar el producto concreto en la lista de resultados.",
+      "Acceder a la página de detalle del producto.",
+      "Extraer el precio del producto.",
+      "Extraer la descripción completa.",
+      "Extraer las reseñas disponibles."
+    ]
+  },
+  {
+    "caso": "Extraer listado completo de productos de una categoría específica (ej. libros más vendidos)",
+    "categoria": "Comercio electrónico",
+    "pasos": [
+      "Acceder a la página principal de Amazon.",
+      "Navegar por el menú hasta la categoría deseada.",
+      "Seleccionar la subcategoría (ej. 'Libros más vendidos').",
+      "Esperar a que cargue la página de productos.",
+      "Realizar scroll hasta cargar todos los productos (si la carga es dinámica).",
+      "Extraer nombre, precio, valoración y enlace de cada producto listado.",
+      "Repetir el proceso en todas las páginas de la categoría si es paginada."
+    ]
+  },
+  {
+    "caso": "Extraer precios dinámicos de productos específicos en eBay",
+    "categoria": "Comercio electrónico",
+    "pasos": [
+      "Acceder a la página principal de eBay.",
+      "Buscar el producto específico utilizando la barra de búsqueda.",
+      "Seleccionar el producto en la lista de resultados.",
+      "Acceder a la página de detalle del producto.",
+      "Extraer el precio mostrado (asociado a la sesión actual).",
+      "Cerrar sesión o abrir ventana incógnito.",
+      "Repetir el proceso con otra cuenta o sesión anónima.",
+      "Comparar los precios obtenidos para detectar variaciones."
+    ]
+  },
+  {
+    "caso": "Extraer titulares principales y fechas de publicación de un periódico online dinámico (El País)",
+    "categoria": "Noticias y blogs dinámicos",
+    "pasos": [
+      "Acceder a la portada de El País.",
+      "Esperar a que carguen los titulares principales.",
+      "Localizar los elementos de titulares en el DOM.",
+      "Extraer el texto de cada titular principal.",
+      "Extraer la fecha de publicación asociada a cada titular.",
+      "Verificar que no haya titulares duplicados o incompletos.",
+      "Guardar los titulares y fechas en el formato requerido."
+    ]
+  },
+  {
+    "caso": "Navegar automáticamente entre páginas de resultados de búsqueda y extraer contenido relevante",
+    "categoria": "Noticias y blogs dinámicos",
+    "pasos": [
+      "Acceder a la página de búsqueda del medio/blog.",
+      "Introducir los términos de búsqueda requeridos.",
+      "Hacer clic en el botón de buscar.",
+      "Esperar a que se carguen los resultados.",
+      "Localizar la sección de resultados.",
+      "Extraer título, resumen y enlace de cada resultado.",
+      "Hacer clic o navegar a la siguiente página de resultados.",
+      "Repetir la extracción en todas las páginas disponibles hasta agotar los resultados."
+    ]
+  },
+  {
+    "caso": "Obtener el texto completo de artículos con carga dinámica (Medium, scroll infinito)",
+    "categoria": "Noticias y blogs dinámicos",
+    "pasos": [
+      "Acceder al enlace del artículo en Medium.",
+      "Esperar a que cargue el contenido inicial.",
+      "Realizar scroll hasta el final del artículo para asegurar la carga completa.",
+      "Detectar y esperar la carga de nuevos bloques de texto si es necesario.",
+      "Extraer el texto completo del artículo, incluidos títulos y subtítulos.",
+      "Verificar que no falten fragmentos debido a la carga dinámica.",
+      "Guardar el texto extraído en el formato requerido."
+    ]
+  },
+  {
+    "caso": "Extraer últimas publicaciones de un perfil público de Twitter (X)",
+    "categoria": "Redes sociales",
+    "pasos": [
+      "Acceder al perfil público de Twitter (X) deseado.",
+      "Esperar a que carguen los tweets recientes.",
+      "Realizar scroll para cargar más publicaciones si es necesario.",
+      "Extraer el texto, fecha y cualquier contenido multimedia (imágenes, vídeos) de cada tweet.",
+      "Limitar la extracción a las N últimas publicaciones.",
+      "Guardar los datos extraídos en el formato requerido."
+    ]
+  },
+  {
+    "caso": "Obtener información básica de un perfil público en LinkedIn (cargo actual, empresa, ubicación)",
+    "categoria": "Redes sociales",
+    "pasos": [
+      "Acceder al perfil público de LinkedIn.",
+      "Esperar a que cargue la información principal del perfil.",
+      "Localizar la sección de experiencia laboral actual.",
+      "Extraer el cargo actual.",
+      "Extraer el nombre de la empresa actual.",
+      "Extraer la ubicación indicada.",
+      "Guardar los datos extraídos en el formato definido."
+    ]
+  },
+  {
+    "caso": "Extraer contenido visual reciente (fotos) de un perfil público de Instagram",
+    "categoria": "Redes sociales",
+    "pasos": [
+      "Acceder al perfil público de Instagram.",
+      "Esperar a que cargue la galería de fotos principal.",
+      "Realizar scroll para cargar más fotos recientes si es necesario.",
+      "Localizar los elementos de imagen en el DOM.",
+      "Extraer la URL y metadatos de cada imagen reciente (hasta N imágenes).",
+      "Guardar los enlaces a las imágenes y la información asociada."
+    ]
+  },
+  {
+    "caso": "Extraer eventos futuros (fechas y detalles) desde un calendario interactivo (tipo calendario JS)",
+    "categoria": "Webs corporativas",
+    "pasos": [
+      "Acceder a la página con el calendario interactivo.",
+      "Esperar a que cargue el componente de calendario.",
+      "Navegar por los diferentes meses si es necesario.",
+      "Identificar los eventos futuros mostrados en el calendario.",
+      "Extraer la fecha, título y detalles de cada evento.",
+      "Guardar los eventos extraídos con su información completa."
+    ]
+  },
+  {
+    "caso": "Obtener noticias recientes de sección dinámica de empresa (carga tras clic o scroll)",
+    "categoria": "Webs corporativas",
+    "pasos": [
+      "Acceder a la página de noticias de la empresa.",
+      "Esperar a que cargue la sección de noticias.",
+      "Realizar scroll o hacer clic en 'ver más' si hay carga dinámica.",
+      "Identificar cada bloque de noticia reciente.",
+      "Extraer el título, fecha y enlace de cada noticia.",
+      "Repetir la extracción en todos los bloques visibles.",
+      "Guardar los datos extraídos en el formato requerido."
+    ]
+  },
+  {
+    "caso": "Extraer listado de oficinas o sucursales con mapas dinámicos (Google Maps embedidos)",
+    "categoria": "Webs corporativas",
+    "pasos": [
+      "Acceder a la página de oficinas/sucursales.",
+      "Esperar a que cargue el mapa embebido de Google Maps.",
+      "Localizar y listar los puntos de interés marcados en el mapa.",
+      "Extraer nombre, dirección y otros datos de cada oficina desde los marcadores.",
+      "Opcionalmente, hacer clic en cada marcador para extraer información adicional.",
+      "Guardar el listado completo de oficinas y detalles obtenidos."
+    ]
+  },
+  {
+    "caso": "Buscar ofertas de trabajo específicas por criterios avanzados en LinkedIn Jobs",
+    "categoria": "Portales de empleo",
+    "pasos": [
+      "Acceder a la sección de empleos en LinkedIn.",
+      "Iniciar sesión si es necesario.",
+      "Introducir los criterios avanzados de búsqueda (palabras clave, ubicación, tipo de puesto, etc.).",
+      "Hacer clic en buscar.",
+      "Esperar a que carguen los resultados.",
+      "Extraer los detalles principales de cada oferta (título, empresa, ubicación, fecha).",
+      "Navegar por varias páginas de resultados si es necesario.",
+      "Guardar las ofertas encontradas."
+    ]
+  },
+  {
+    "caso": "Extraer detalles de empleos desde Indeed (descripción, ubicación, salario)",
+    "categoria": "Portales de empleo",
+    "pasos": [
+      "Acceder a la página principal de Indeed.",
+      "Introducir los términos de búsqueda y ubicación deseados.",
+      "Hacer clic en buscar.",
+      "Esperar a que se carguen las ofertas de empleo.",
+      "Para cada oferta listada, extraer título, descripción breve, ubicación y salario (si aparece).",
+      "Acceder a la página de detalle de cada oferta para extraer información adicional.",
+      "Guardar los datos recopilados."
+    ]
+  },
+  {
+    "caso": "Obtener información dinámica sobre empresas empleadoras (perfiles completos desde Glassdoor)",
+    "categoria": "Portales de empleo",
+    "pasos": [
+      "Acceder a la página principal de Glassdoor.",
+      "Buscar la empresa deseada utilizando el buscador.",
+      "Seleccionar la empresa en los resultados.",
+      "Esperar a que cargue el perfil de la empresa.",
+      "Extraer información relevante: descripción, sector, tamaño, valoraciones y opiniones.",
+      "Extraer detalles adicionales como salarios, entrevistas y fotos si están disponibles.",
+      "Guardar la información obtenida en el formato definido."
+    ]
+  },
+  {
+    "caso": "Extraer información estructurada desde el BOE o similar (licitaciones recientes)",
+    "categoria": "Webs administrativas",
+    "pasos": [
+      "Acceder a la web del BOE o sitio equivalente.",
+      "Navegar hasta la sección de licitaciones o boletines recientes.",
+      "Esperar a que cargue la lista de licitaciones.",
+      "Extraer los campos clave de cada licitación: título, fecha, referencia, órgano, importe.",
+      "Opcionalmente, acceder a los detalles completos de cada licitación.",
+      "Guardar la información estructurada de cada licitación encontrada."
+    ]
+  },
+  {
+    "caso": "Navegar formularios administrativos para obtener información específica (cita previa médico)",
+    "categoria": "Webs administrativas",
+    "pasos": [
+      "Acceder a la página de cita previa del servicio médico correspondiente.",
+      "Seleccionar el tipo de gestión o trámite requerido.",
+      "Introducir los datos personales solicitados.",
+      "Navegar por las distintas pantallas del formulario (siguiente, anterior).",
+      "Seleccionar el centro, fecha y hora disponibles.",
+      "Confirmar la solicitud de cita.",
+      "Extraer y guardar la confirmación y detalles de la cita reservada."
+    ]
+  },
+  {
+    "caso": "Descargar y parsear información desde tablas HTML dinámicas de estadísticas públicas (INE)",
+    "categoria": "Webs administrativas",
+    "pasos": [
+      "Acceder a la página específica del INE con las estadísticas requeridas.",
+      "Esperar a que cargue la tabla de datos.",
+      "Realizar scroll o interactuar si la tabla es dinámica.",
+      "Extraer los datos de todas las filas y columnas relevantes de la tabla.",
+      "Gestionar la paginación si existe.",
+      "Guardar la información en formato estructurado (CSV, JSON, etc.)."
+    ]
+  },
+  {
+    "caso": "Completar formulario dinámico con pasos dependientes (selección múltiple)",
+    "categoria": "Acciones complejas",
+    "pasos": [
+      "Acceder a la página con el formulario dinámico.",
+      "Esperar a que cargue completamente el formulario.",
+      "Seleccionar una opción en el primer campo (desencadenando opciones dependientes).",
+      "Esperar a que carguen los siguientes campos según la selección.",
+      "Completar todos los campos requeridos, realizando selecciones múltiples si aplica.",
+      "Revisar el resumen antes de enviar.",
+      "Enviar el formulario.",
+      "Confirmar el envío correcto del formulario y extraer el resumen final."
+    ]
+  },
+  {
+    "caso": "Navegar mediante drag&drop (selección interactiva tipo listas ordenables)",
+    "categoria": "Acciones complejas",
+    "pasos": [
+      "Acceder a la página que contiene la lista ordenable.",
+      "Esperar a que se cargue el componente interactivo.",
+      "Seleccionar el elemento a mover.",
+      "Arrastrar el elemento hasta la posición deseada mediante drag&drop.",
+      "Repetir el proceso con otros elementos si es necesario.",
+      "Confirmar el nuevo orden final de la lista.",
+      "Extraer la nueva secuencia de elementos."
+    ]
+  },
+  {
+    "caso": "Manejar scroll infinito para cargar múltiples páginas de resultados en Pinterest o similar",
+    "categoria": "Acciones complejas",
+    "pasos": [
+      "Acceder a la página de resultados de Pinterest.",
+      "Esperar a que carguen los primeros elementos.",
+      "Realizar scroll hasta el final de la página para forzar la carga dinámica.",
+      "Repetir el scroll hasta cargar el número deseado de elementos.",
+      "Extraer la información relevante de cada elemento (imagen, descripción, enlace).",
+      "Guardar todos los resultados extraídos."
+    ]
+  },
+  {
+    "caso": "Simular un proceso completo en una tienda online pequeña (añadir al carrito, rellenar dirección y método de pago, sin realizar pago real)",
+    "categoria": "Compras online completas",
+    "pasos": [
+      "Acceder a la tienda online seleccionada.",
+      "Navegar hasta la ficha del producto deseado.",
+      "Añadir el producto al carrito de compra.",
+      "Acceder al carrito y revisar los productos añadidos.",
+      "Iniciar el proceso de checkout.",
+      "Rellenar los datos de envío y dirección.",
+      "Seleccionar método de pago (sin completar el pago real).",
+      "Finalizar el proceso hasta el último paso antes del pago.",
+      "Extraer el resumen de la compra y los datos introducidos."
+    ]
+  },
+  {
+    "caso": "Añadir múltiples artículos al carrito y simular proceso de checkout en tienda grande (Zara online)",
+    "categoria": "Compras online completas",
+    "pasos": [
+      "Acceder a la tienda online de Zara.",
+      "Buscar y seleccionar varios productos.",
+      "Elegir talla, color u otras opciones para cada producto.",
+      "Añadir cada producto al carrito.",
+      "Acceder al carrito para revisar la selección.",
+      "Iniciar el proceso de checkout.",
+      "Rellenar los datos de cliente y envío.",
+      "Seleccionar método de pago (sin completar el pago).",
+      "Finalizar el proceso hasta el último paso antes del pago real.",
+      "Extraer el resumen final del pedido."
+    ]
+  },
+  {
+    "caso": "Interactuar dinámicamente con popups promocionales y descuentos automáticos al hacer compras (tienda online tipo PCComponentes)",
+    "categoria": "Compras online completas",
+    "pasos": [
+      "Acceder a la tienda online de PCComponentes.",
+      "Navegar por productos y seleccionar uno o varios.",
+      "Añadir productos al carrito.",
+      "Detectar y cerrar o aceptar cualquier popup promocional que aparezca.",
+      "Aplicar códigos de descuento si hay campo disponible.",
+      "Acceder al resumen de compra y verificar la aplicación del descuento.",
+      "Iniciar el proceso de checkout hasta el último paso antes del pago.",
+      "Extraer el total actualizado y los detalles del pedido."
+    ]
+  },
+  {
+    "caso": "Completar registro de usuario nuevo en web sencilla (WordPress estándar)",
+    "categoria": "Creación de perfiles",
+    "pasos": [
+      "Acceder a la página de registro de la web WordPress.",
+      "Esperar a que cargue el formulario de registro.",
+      "Introducir nombre de usuario, correo electrónico y contraseña.",
+      "Aceptar términos y condiciones si es necesario.",
+      "Hacer clic en el botón de registro.",
+      "Esperar la confirmación de creación de cuenta.",
+      "Extraer el mensaje de confirmación y los datos del usuario registrado."
+    ]
+  },
+  {
+    "caso": "Completar registro complejo con validaciones y captura dinámica de campos (Airbnb o Booking)",
+    "categoria": "Creación de perfiles",
+    "pasos": [
+      "Acceder a la página de registro de Airbnb o Booking.",
+      "Esperar a que cargue el formulario inicial.",
+      "Introducir nombre, correo electrónico y contraseña.",
+      "Completar los campos adicionales solicitados de forma dinámica (teléfono, dirección, fecha de nacimiento, etc.).",
+      "Responder a validaciones dinámicas (por ejemplo, verificación de correo o teléfono).",
+      "Aceptar términos y condiciones.",
+      "Enviar el formulario de registro.",
+      "Esperar confirmación y extraer los datos del usuario registrado."
+    ]
+  },
+  {
+    "caso": "Automatizar login con verificación en dos pasos dinámica (correo electrónico)",
+    "categoria": "Creación de perfiles",
+    "pasos": [
+      "Acceder a la página de login.",
+      "Introducir usuario/correo electrónico y contraseña.",
+      "Hacer clic en iniciar sesión.",
+      "Esperar a que solicite el código de verificación enviado por email.",
+      "Acceder a la cuenta de correo electrónico y localizar el mensaje de verificación.",
+      "Extraer el código recibido.",
+      "Introducir el código en el formulario de la web.",
+      "Confirmar el inicio de sesión exitoso.",
+      "Extraer los datos básicos del perfil tras el login."
+    ]
+  },
+  {
+    "caso": "Modificar dinámicamente información del perfil creado tras login",
+    "categoria": "Creación de perfiles",
+    "pasos": [
+      "Acceder a la página de login de la web.",
+      "Iniciar sesión con las credenciales del usuario.",
+      "Esperar a que cargue el panel de usuario o perfil.",
+      "Navegar hasta la sección de edición de perfil.",
+      "Modificar los campos requeridos (nombre, foto, dirección, etc.).",
+      "Guardar los cambios realizados.",
+      "Verificar que la información modificada se haya actualizado correctamente.",
+      "Extraer el resumen de cambios aplicados."
+    ]
+  }
+]

@@ -16,7 +16,15 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from benchmark_app.views import crear_categorias, crear_casos_uso, poblar_bbdd, poblar_casos_uso_desde_json
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('crear_categorias/', crear_categorias),
+    path('crear_casos_uso/', crear_casos_uso),
+    path('poblar_bbdd/', poblar_bbdd),
+    path('poblar_casos_uso_json/', poblar_casos_uso_desde_json),
+
+
 ]
