@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Benchmark de Agentes Web</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; }
+    .container { max-width: 900px; }
+    .header {
+      background-color: #0d6efd; color: white;
+      padding: 30px; border-radius: 0.5rem;
+      margin-bottom: 30px; text-align: center;
+    }
+    .card { border: none; }
+    textarea { resize: vertical; }
+    select option {
+        white-space: pre-wrap;
+    }
+    #promptPreview {
+      white-space: pre-wrap;
+      font-size: 0.875rem;
+      background-color: #f1f1f1;
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 class="h3">Evaluación de Agentes de Web Scraping</h1>
+      <p class="mb-0">Selecciona un caso, un agente, y ejecuta para obtener resultados automáticos.</p>
+    </div>
+
+    <div class="card shadow-sm p-4 mb-4 bg-white">
+      <div class="mb-3">
+        <label for="categoriaSelect" class="form-label">Categoría</label>
+        <select class="form-select" id="categoriaSelect"></select>
+      </div>
+
+      <div class="mb-3">
+        <label for="casoSelect" class="form-label">Caso de uso</label>
+        <select class="form-select" id="casoSelect"></select>
+      </div>
+
+      <div class="mb-3">
+        <label for="preguntaSelect" class="form-label">Prompt disponible</label>
+        <select class="form-select" id="preguntaSelect"></select>
+        <div id="promptPreview" class="mt-2"></div>
+      </div>
+
+      <div class="mb-3">
+        <label for="customPrompt" class="form-label">Prompt personalizado (opcional)</label>
+        <textarea class="form-control" id="customPrompt" rows="3" placeholder="O escribe aquí tu prompt..."></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label for="agenteSelect" class="form-label">Agente</label>
+        <select class="form-select" id="agenteSelect"></select>
+      </div>
+
+      <button class="btn btn-primary w-100" onclick="runAgent()">Ejecutar Agente</button>
+    </div>
+
+    <div class="card shadow-sm p-4 bg-white">
+      <h5 class="mb-3">Resultado</h5>
+      <pre id="resultado" class="bg-light text-dark p-3 rounded" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></pre>
+    </div>
+  </div>
+
+<script>
+async function fetchData() {
+  const [casos, agentes] = await Promise.all([
+    fetch('/api/casos/').then(r => r.json()),
+    fetch('/api/agentes/').then(r => r.json())
+  ]);
+
+  const categorias = {};
+  casos.forEach(c => {
+    if (!categorias[c.categoria]) categorias[c.categoria] = [];
+    categorias[c.categoria].push(c);
+  });
+
+  const categoriaSelect = document.getElementById('categoriaSelect');
+  Object.keys(categorias).forEach(cat => categoriaSelect.add(new Option(cat, cat)));
+
+  categoriaSelect.onchange = () => {
+    const selected = categoriaSelect.value;
+    const casoSelect = document.getElementById('casoSelect');
+    casoSelect.innerHTML = '';
+    categorias[selected].forEach(c => casoSelect.add(new Option(c.titulo, c.id)));
+    casoSelect.dispatchEvent(new Event('change'));
+  };
+
+  categoriaSelect.dispatchEvent(new Event('change'));
+
+  const preguntaSelect = document.getElementById('preguntaSelect');
+  const promptPreview = document.getElementById('promptPreview');
+
+  document.getElementById('casoSelect').onchange = async () => {
+    const casoId = document.getElementById('casoSelect').value;
+    const preguntas = await fetch(`/api/casos/${casoId}/preguntas/`).then(r => r.json());
+
+    preguntaSelect.innerHTML = '';
+
+    const defaultOption = new Option('-- Selecciona un prompt --', '');
+    defaultOption.disabled = true;
+    defaultOption.selected = true;
+    preguntaSelect.add(defaultOption);
+    promptPreview.textContent = '';
+
+    preguntas.forEach(p => {
+      const preview = p.texto.length > 100 ? p.texto.slice(0, 90).replace(/(.{30})/g, '$1 ') + '...' : p.texto;
+      const opt = new Option(preview, p.id);
+      opt.title = p.texto;
+      opt.dataset.full = p.texto;
+      preguntaSelect.add(opt);
+    });
+  };
+
+  preguntaSelect.addEventListener('change', () => {
+    const full = preguntaSelect.options[preguntaSelect.selectedIndex].dataset.full || '';
+    promptPreview.textContent = full;
+    document.getElementById('customPrompt').value = '';
+  });
+
+  const agenteSelect = document.getElementById('agenteSelect');
+  agentes.forEach(a => agenteSelect.add(new Option(a.nombre, a.id)));
+
+  const customPrompt = document.getElementById('customPrompt');
+
+  customPrompt.addEventListener('input', () => {
+    if (customPrompt.value.trim()) {
+      preguntaSelect.disabled = true;
+      promptPreview.textContent = '';
+    } else {
+      preguntaSelect.disabled = false;
+      const selected = preguntaSelect.options[preguntaSelect.selectedIndex];
+      promptPreview.textContent = selected?.dataset.full || '';
+    }
+  });
+}
+
+async function runAgent() {
+  const caso = document.getElementById('casoSelect').value;
+  const agente = document.getElementById('agenteSelect').value;
+  const pregunta = document.getElementById('preguntaSelect').value;
+  const customPrompt = document.getElementById('customPrompt').value;
+
+  const res = await fetch(`/run/${caso}/${agente}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ pregunta_id: pregunta, prompt_manual: customPrompt })
+  }).then(r => r.json());
+
+  document.getElementById('resultado').textContent = JSON.stringify(res, null, 2);
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  document.cookie.split(';').forEach(cookie => {
+    const trimmed = cookie.trim();
+    if (trimmed.startsWith(name + '=')) {
+      cookieValue = decodeURIComponent(trimmed.slice(name.length + 1));
+    }
+  });
+  return cookieValue;
+}
+
+window.onload = fetchData;
+</script>
+</body>
+</html>

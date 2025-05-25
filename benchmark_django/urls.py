@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from benchmark_app.views import crear_categorias, crear_casos_uso, poblar_bbdd, poblar_casos_uso_desde_json
+from benchmark_app.views import *
 
 
 urlpatterns = [
@@ -25,6 +25,12 @@ urlpatterns = [
     path('crear_casos_uso/', crear_casos_uso),
     path('poblar_bbdd/', poblar_bbdd),
     path('poblar_casos_uso_json/', poblar_casos_uso_desde_json),
+    path('run/<int:caso_uso_id>/<int:agente_id>/', run_agente, name='run_agente'),
+    path('', home, name='home'),  
+    path('api/casos/', api_casos), # casos de uso
+    path('api/agentes/', api_agentes), # agentes disponibles
+    path('api/casos/<int:caso_id>/preguntas/', api_preguntas_por_caso), #preguntas
+
 
 
 ]
