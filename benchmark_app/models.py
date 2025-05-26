@@ -70,7 +70,7 @@ class Resultado(models.Model):
     caso_uso = models.ForeignKey(CasoUso, on_delete=models.CASCADE, null=True, blank=True)
     respuesta = models.TextField()
     puntaje = models.FloatField(null=True, blank=True)
-    logs = models.TextField(blank=True)  # ⬅️ Aquí se guarda el log
+    logs = models.TextField(blank=True)  
     fecha = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

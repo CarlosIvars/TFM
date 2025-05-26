@@ -21,9 +21,9 @@ from benchmark_app.views import *
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('crear_categorias/', crear_categorias),
-    path('crear_casos_uso/', crear_casos_uso),
-    path('poblar_bbdd/', poblar_bbdd),
+    # path('crear_categorias/', crear_categorias),
+    # path('crear_casos_uso/', crear_casos_uso),
+    # path('poblar_bbdd/', poblar_bbdd),
     path('poblar_casos_uso_json/', poblar_casos_uso_desde_json),
     path('run/<int:caso_uso_id>/<int:agente_id>/', run_agente, name='run_agente'),
     path('', home, name='home'),  

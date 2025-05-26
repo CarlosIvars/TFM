@@ -19,7 +19,7 @@ class AgenteAdmin(admin.ModelAdmin):
 
 @admin.register(Resultado)
 class ResultadoAdmin(admin.ModelAdmin):
-    list_display = ('id', 'agente', 'caso_uso', 'puntaje', 'fecha')
+    list_display = ('id', 'agente', 'caso_uso','respuesta','fecha', 'puntaje', 'logs')
     search_fields = ('respuesta',)
     list_filter = ('agente', 'caso_uso', 'fecha')
 
