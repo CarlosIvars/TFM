@@ -11,21 +11,30 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
-
+import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+from dotenv import load_dotenv
+load_dotenv()
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-3#f*5op#&9dpk3x!@1px)=2uv=fglu7mweu9a)qym=afz&)m0d'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "[::1]",  # IPv6 localhost
+    # "tu_dominio.azurewebsites.net"  # si lo usas en despliegue
+]
+
 
 
 # Application definition
@@ -77,8 +86,12 @@ WSGI_APPLICATION = 'benchmark_django.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('AZURE_DB_NAME'),
+        'USER': os.environ.get('AZURE_DB_USER'),
+        'PASSWORD': os.environ.get('AZURE_DB_PASSWORD'),
+        'HOST': os.environ.get('AZURE_DB_HOST'),
+        'PORT': os.environ.get('AZURE_DB_PORT'),
     }
 }
 
