@@ -1,4 +1,3 @@
-# scripts/run_browser_agent.py
 import sys
 import os
 import asyncio
@@ -28,9 +27,8 @@ print("DEBUG: CWD =", os.getcwd())
 
 # Cargar .env y mostrar la API KEY
 load_dotenv()
-print("DEBUG: OPENAI_API_KEY =", os.getenv("OPENAI_API_KEY"))
 
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from browser_use import Agent, Browser, BrowserConfig
 from browser_use.browser import BrowserProfile, BrowserSession
 
@@ -48,20 +46,37 @@ def limitar_prompt_tokens(prompt, model="gpt-4o", max_tokens=12000):
     return prompt
 
 class BrowserUseAgent:
-    def __init__(self, llm_model='gpt-4o', use_vision=True):
-        print(f"DEBUG: __init__ llm_model={llm_model}, use_vision={use_vision}")
+    def __init__(self, llm_model='gpt-4o', use_vision=True, use_azure=True):
+        """
+        llm_model: nombre del modelo (por ejemplo, 'gpt-4.1-nano-2025-04-14' para Azure o 'gpt-4o' para OpenAI)
+        use_azure: True si quieres Azure OpenAI, False para OpenAI normal
+        """
+        print(f"DEBUG: __init__ llm_model={llm_model}, use_vision={use_vision}, use_azure={use_azure}")
         self.llm_model = llm_model
         self.use_vision = use_vision
+        self.use_azure = use_azure
+        self.llm = None
 
     def setup(self):
         print("DEBUG: Entrando en setup()")
-        print("DEBUG: OPENAI_API_KEY =", os.getenv("OPENAI_API_KEY"))
-        try:
-            self.llm = ChatOpenAI(model=self.llm_model, temperature=0.0)
-            print("DEBUG: LLM inicializado correctamente")
-        except Exception as e:
-            print(f"EXCEPTION inicializando LLM: {e}")
-            raise
+        if self.use_azure:
+            print("DEBUG: Usando AzureChatOpenAI")
+            self.llm = AzureChatOpenAI(
+                azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT"],
+                openai_api_version=os.environ["AZURE_OPENAI_VERSION"],
+                azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+                openai_api_key=os.environ["AZURE_OPENAI_KEY"],
+                temperature=0.0
+            )
+        else:
+            print("DEBUG: Usando OpenAI directo")
+            self.llm = ChatOpenAI(
+                model=self.llm_model,
+                temperature=0.0
+            )
+        print("DEBUG: LLM inicializado correctamente")
+
+        # Aquí la sesión del browser (esto parece OK)
         try:
             self.browser_session = BrowserSession(
                 browser_profile=BrowserProfile(
@@ -92,19 +107,16 @@ class BrowserUseAgent:
         print("DEBUG: Entrando en run_case()")
         self.setup()
         print("DEBUG: setup() OK, preprocesando prompt...")
+        # aquí solo pasas el nombre del modelo, no el objeto
         task_prompt = limitar_prompt_tokens(prompt_text, model=self.llm_model, max_tokens=12000)
         print(f"DEBUG: Prompt final: {task_prompt[:60]}...")
 
-        import io
-        import logging
-
-        # Configurar capturador de logs
+        # ... resto de tu código idéntico ...
         log_stream = io.StringIO()
         handler = logging.StreamHandler(log_stream)
         formatter = logging.Formatter('%(levelname)s [%(name)s] %(message)s')
         handler.setFormatter(formatter)
 
-        # Apuntar a todos los loggers relevantes
         for logger_name in ['browser_use', 'agent', 'controller', 'browser']:
             logger = logging.getLogger(logger_name)
             logger.setLevel(logging.INFO)
@@ -122,11 +134,9 @@ class BrowserUseAgent:
             log_stream.write(f"\nEXCEPTION: {str(e)}\n")
         end = time.time()
 
-        # Extraer contenido capturado
         logs = log_stream.getvalue()
         print("DEBUG: LOGS CAPTURADOS:\n", logs[-500:])  # Últimas 500 chars
 
-        # Detach handlers
         for logger_name in ['browser_use', 'agent', 'controller', 'browser']:
             logging.getLogger(logger_name).removeHandler(handler)
 
@@ -145,7 +155,10 @@ class BrowserUseAgent:
 
 if __name__ == "__main__":
     print("DEBUG: MAIN ejecutando ejemplo de uso")
-    agent = BrowserUseAgent()
+    agent = BrowserUseAgent(
+        llm_model='gpt-4.1-nano-2025-04-14',  # tu modelo de Azure OpenAI
+        use_azure=True
+    )
     prompt = "go to https://en.wikipedia.org/wiki/Banana and navigate to Quantum mechanics"
     res = agent.run_case(prompt)
     print("DEBUG: RESULTADO FINAL:", res)

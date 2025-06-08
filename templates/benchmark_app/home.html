@@ -8,9 +8,12 @@
     body { background-color: #f8f9fa; }
     .container { max-width: 900px; }
     .header {
-      background-color: #0d6efd; color: white;
-      padding: 30px; border-radius: 0.5rem;
-      margin-bottom: 30px; text-align: center;
+      background-image: linear-gradient(135deg, #0d6efd, #66b3ff83);
+      color: white;
+      padding: 30px;
+      border-radius: 0.5rem;
+      margin-bottom: 30px;
+      text-align: center;
     }
     .card { border: none; }
     textarea { resize: vertical; }
@@ -25,8 +28,15 @@
       border-radius: 5px;
     }
   </style>
+
 </head>
 <body>
+  <nav class="navbar navbar-expand-lg mb-4" style="background: linear-gradient(90deg, #0d6efd, #66b2ff); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div class="container d-flex justify-content-between align-items-center">
+      <span class="navbar-brand text-white fw-semibold mb-0 h1">Benchmark de Agentes</span>
+      <a href="/admin/login/?next=/admin/" class="btn btn-outline-light">Admin</a>
+    </div>
+  </nav>
   <div class="container">
     <div class="header">
       <h1 class="h3">Evaluación de Agentes de Web Scraping</h1>
@@ -60,13 +70,14 @@
         <select class="form-select" id="agenteSelect"></select>
       </div>
 
-      <button class="btn btn-primary w-100" onclick="runAgent()">Ejecutar Agente</button>
+      <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+        <button class="btn btn-primary me-md-2" onclick="runAgent()">Ejecutar Agente</button>
+        <button class="btn btn-secondary" id="verResultadosBtn" disabled>Ver Resultados</button>
+      </div>
+
     </div>
 
-    <div class="card shadow-sm p-4 bg-white">
-      <h5 class="mb-3">Resultado</h5>
-      <pre id="resultado" class="bg-light text-dark p-3 rounded" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></pre>
-    </div>
+   
   </div>
 
 <script>
@@ -142,20 +153,49 @@ async function fetchData() {
   });
 }
 
+let lastResultadoId = null;
+
 async function runAgent() {
-  const caso = document.getElementById('casoSelect').value;
   const agente = document.getElementById('agenteSelect').value;
   const pregunta = document.getElementById('preguntaSelect').value;
   const customPrompt = document.getElementById('customPrompt').value;
 
-  const res = await fetch(`/run/${caso}/${agente}/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-    body: JSON.stringify({ pregunta_id: pregunta, prompt_manual: customPrompt })
-  }).then(r => r.json());
+  if (!customPrompt.trim() && !pregunta) {
+    alert("Selecciona un prompt o escribe uno personalizado.");
+    return;
+  }
 
-  document.getElementById('resultado').textContent = JSON.stringify(res, null, 2);
+  // Si no hay pregunta seleccionada, pon 0
+  const pregunta_id = pregunta ? pregunta : "0";
+
+  const res = await fetch(`/run/${pregunta_id}/${agente}/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      prompt_manual: customPrompt
+    })
+  });
+
+  const data = await res.json();
+  document.getElementById('resultado').textContent = JSON.stringify(data, null, 2);
+
+  if (data.resultado_id) {
+    lastResultadoId = data.resultado_id;
+    const btn = document.getElementById('verResultadosBtn');
+    btn.disabled = false;
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-primary');
+    btn.onclick = () => {
+      window.location.href = `/resultados/${lastResultadoId}/`;
+    };
+  } else {
+    alert(data.error || "Hubo un error ejecutando el agente.");
+  }
 }
+
 
 function getCookie(name) {
   let cookieValue = null;
