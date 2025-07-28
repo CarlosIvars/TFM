@@ -88,7 +88,8 @@ class Resultado(models.Model):
     logs = models.TextField(blank=True)
     # Métricas objetivas:
     tiempo_total_seg = models.FloatField(null=True, blank=True)
-    acciones_realizadas = models.IntegerField(null=True, blank=True)
+    acciones_realizadas = models.JSONField(null=True, blank=True)
+    n_acciones_realizadas = models.IntegerField(null=True, blank=True)
     cpu_usado = models.FloatField(null=True, blank=True)
     ram_usada_mb = models.FloatField(null=True, blank=True)
     porcentaje_pasos_ok = models.FloatField(null=True, blank=True)

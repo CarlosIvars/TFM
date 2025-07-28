@@ -79,14 +79,16 @@ def run_agente(request, pregunta_id, agente_id):
 
     agente_runner = BrowserUseAgent(llm_model=agente.modelo_llm)
     resultado_dict = agente_runner.run_case(prompt)
-
+    print('Resultado del agente:', resultado_dict)
+    acciones = resultado_dict.get("acciones_realizadas") or []
     resultado = Resultado.objects.create(
         agente=agente,
         pregunta=pregunta,
-        respuesta=resultado_dict.get('respuesta', ''),
+        respuesta=resultado_dict.get('respuesta') or '',
         logs=resultado_dict.get('logs', ''),
         tiempo_total_seg=resultado_dict.get("tiempo_total_seg"),
-        acciones_realizadas=resultado_dict.get("acciones_realizadas"),
+        acciones_realizadas=acciones,
+        n_acciones_realizadas=len(acciones),
         cpu_usado=resultado_dict.get("cpu_usado"),
         ram_usada_mb=resultado_dict.get("ram_usada_mb"),
         porcentaje_pasos_ok=resultado_dict.get("porcentaje_pasos_ok"),
