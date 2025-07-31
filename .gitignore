@@ -11,5 +11,6 @@ __pycache__/
 *.sqlite3
 *.env
 *.DS_Store
-*
-.json
+*.json
+azure
+azure.pub

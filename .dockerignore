@@ -1,0 +1,44 @@
+# Entornos virtuales
+.venv/
+venv/
+venv_TFM/
+
+# Archivos compilados de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Archivos de entorno y base de datos
+*.log
+*.sqlite3
+*.db
+.env
+.env.*
+
+# Control de versiones y configuración local
+.git/
+.gitignore
+
+# Archivos de contenedor
+Dockerfile
+.dockerignore
+
+# Archivos grandes y temporales
+*.zip
+*.tar.gz
+*.egg-info/
+*.whl
+*.bak
+*.tmp
+
+# Carpetas que no deben estar en el contenedor
+tests/
+test/
+notebooks/
+docs/
+media/
+staticfiles/  # si usas collectstatic
+
+# Node.js (si aplicara)
+node_modules/
