@@ -10,10 +10,31 @@
     .panel { background: white; border-radius: 8px; box-shadow: 0 0 8px rgba(0,0,0,0.05); padding: 20px; }
     pre.resultado-box { max-height: 500px; overflow-y: auto; background-color: #e9ecef; padding: 15px; border-radius: 5px; white-space: pre-wrap; }
     .list-scroll { max-height: 600px; overflow-y: auto; }
+
+    /* ⬇️ Igual que en home.html */
+    .header {
+      background-image: linear-gradient(135deg, #0d6efd, #66b3ff83);
+      color: white;
+      padding: 30px;
+      border-radius: 0.5rem;
+      margin-bottom: 30px;
+      text-align: center;
+    }
   </style>
+  
 </head>
 <body>
+   <nav class="navbar navbar-expand-lg mb-4" style="background: linear-gradient(90deg, #0d6efd, #66b2ff); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div class="container d-flex justify-content-between align-items-center">
+      <span class="navbar-brand text-white fw-semibold mb-0 h1">Benchmark de Agentes</span>
+      <a href="/admin/login/?next=/admin/" class="btn btn-outline-light">Admin</a>
+    </div>
+  </nav>
   <div class="container mt-4">
+    <div class="header">
+      <h1 class="h3">Evaluación de Agentes de Web Scraping</h1>
+      <p class="mb-0">Selecciona una ejecución y realiza la evaluación.</p>
+    </div>
     <!-- Tabs navegación -->
     <ul class="nav nav-tabs mb-4">
       <li class="nav-item">
