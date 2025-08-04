@@ -29,7 +29,7 @@ class AgenteAdmin(admin.ModelAdmin):
 @admin.register(Resultado)
 class ResultadoAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'agente', 'pregunta', 'respuesta', 'fecha', 'run_id',
+        'id', 'agente','fecha', 'pregunta', 'respuesta', 'run_id',
         'tiempo_total_seg', 'acciones_realizadas', 'cpu_usado', 'ram_usada_mb'
     )
     search_fields = ('respuesta', 'logs')

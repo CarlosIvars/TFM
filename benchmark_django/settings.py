@@ -26,7 +26,7 @@ load_dotenv()
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
 
 AZURE_HOST = os.environ.get('AZURE_HOST')
@@ -34,10 +34,11 @@ AZURE_HOST = os.environ.get('AZURE_HOST')
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    AZURE_HOST,
-    "[::1]",  # IPv6 localhost
-    # "tu_dominio.azurewebsites.net"  # si lo usas en despliegue
+    "[::1]",
 ]
+# Añade el host de Azure si está definido
+if AZURE_HOST:
+    ALLOWED_HOSTS.append(AZURE_HOST)
 
 CSRF_TRUSTED_ORIGINS = [
     f"https://{AZURE_HOST}",
@@ -149,3 +150,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 LOGIN_URL = '/admin/login/'
+
+import sys
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "stream": sys.stdout},
+    },
+    "root": {"handlers": ["console"], "level": "INFO"},
+}
