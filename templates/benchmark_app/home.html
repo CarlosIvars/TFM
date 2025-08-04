@@ -1,3 +1,4 @@
+<!-- templates/benchmark_app/home.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -17,9 +18,7 @@
     }
     .card { border: none; }
     textarea { resize: vertical; }
-    select option {
-        white-space: pre-wrap;
-    }
+    select option { white-space: pre-wrap; }
     #promptPreview {
       white-space: pre-wrap;
       font-size: 0.875rem;
@@ -28,7 +27,6 @@
       border-radius: 5px;
     }
   </style>
-
 </head>
 <body>
   <nav class="navbar navbar-expand-lg mb-4" style="background: linear-gradient(90deg, #0d6efd, #66b2ff); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -42,6 +40,16 @@
       <h1 class="h3">Evaluación de Agentes de Web Scraping</h1>
       <p class="mb-0">Selecciona un caso, un agente, y ejecuta para obtener resultados automáticos.</p>
     </div>
+
+    <!-- Barra de pestañas para navegar entre Ejecutar/Evaluar -->
+    <ul class="nav nav-tabs mb-4">
+      <li class="nav-item">
+        <a class="nav-link active" aria-current="page" href="#">Ejecutar Agente</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link"  id="evaluarAgenteLink" href="/resultados/">Evaluar Agente</a>
+      </li>
+    </ul>
 
     <div class="card shadow-sm p-4 mb-4 bg-white">
       <div class="mb-3">
@@ -65,6 +73,29 @@
         <textarea class="form-control" id="customPrompt" rows="3" placeholder="O escribe aquí tu prompt..."></textarea>
       </div>
 
+      <!-- Nuevos desplegables para Tipo y Dificultad -->
+      <div class="mb-3">
+        <label for="tipoSelect" class="form-label">Tipo de tarea</label>
+        <select id="tipoSelect" class="form-select">
+          <option disabled selected value="">Seleccione un tipo</option>
+          <option value="extraccion">Extracción</option>
+          <option value="navegacion">Navegación</option>
+          <option value="interaccion">Interacción</option>
+          <option value="login">Login</option>
+          <option value="simulacion_compra">Simulación de compra</option>
+          <option value="visual">Visual</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="dificultadSelect" class="form-label">Dificultad</label>
+        <select id="dificultadSelect" class="form-select">
+          <option disabled selected value="">Seleccione dificultad</option>
+          <option value="facil">Fácil</option>
+          <option value="media">Media</option>
+          <option value="dificil">Difícil</option>
+        </select>
+      </div>
+
       <div class="mb-3">
         <label for="agenteSelect" class="form-label">Agente</label>
         <select class="form-select" id="agenteSelect"></select>
@@ -72,143 +103,291 @@
 
       <div class="d-grid gap-2 d-md-flex justify-content-md-end">
         <button class="btn btn-primary me-md-2" onclick="runAgent()">Ejecutar Agente</button>
-        <button class="btn btn-secondary" id="verResultadosBtn" disabled>Ver Resultados</button>
+        <button class="btn btn-primary me-md-2" id="guardarBtn" onclick="savePrompt()">Guardar</button>
       </div>
-
     </div>
 
-   
-  </div>
+    <!-- Modal mientras ejecuta -->
+    <div class="modal fade" id="runningModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-body d-flex align-items-center gap-3">
+            <div class="spinner-border" role="status" aria-hidden="true"></div>
+            <div>
+              <h5 class="mb-1">Ejecutando agente…</h5>
+              <small class="text-muted">Por favor, espera</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-<script>
-async function fetchData() {
-  const [casos, agentes] = await Promise.all([
-    fetch('/api/casos/').then(r => r.json()),
-    fetch('/api/agentes/').then(r => r.json())
-  ]);
+    <!-- Modal de confirmación al ejecutar agente -->
+    <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Agente lanzado</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            El agente ha terminado la ejecución correctamente.
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Aceptar</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  const categorias = {};
-  casos.forEach(c => {
-    if (!categorias[c.categoria]) categorias[c.categoria] = [];
-    categorias[c.categoria].push(c);
-  });
+  </div> <!-- /container -->
 
-  const categoriaSelect = document.getElementById('categoriaSelect');
-  Object.keys(categorias).forEach(cat => categoriaSelect.add(new Option(cat, cat)));
+  <script>
+  // ---------- Helpers de exclusividad ----------
+  function setModePredef() {
+    // Modo "Prompt disponible" seleccionado
+    document.getElementById('customPrompt').value = '';
+    document.getElementById('customPrompt').disabled = true;
 
-  categoriaSelect.onchange = () => {
-    const selected = categoriaSelect.value;
+    document.getElementById('tipoSelect').disabled = true;
+    document.getElementById('dificultadSelect').disabled = true;
+
+    const guardarBtn = document.getElementById('guardarBtn');
+    if (guardarBtn) guardarBtn.disabled = true;
+  }
+
+  function setModeCustom() {
+    // Modo "Prompt personalizado" activo
+    const preguntaSelect = document.getElementById('preguntaSelect');
+    // Resetea "Prompt disponible" a la opción por defecto
+    if (preguntaSelect.options.length > 0) {
+      preguntaSelect.selectedIndex = 0; // primera opción es el placeholder
+    }
+    document.getElementById('promptPreview').textContent = '';
+
+    document.getElementById('customPrompt').disabled = false;
+    document.getElementById('tipoSelect').disabled = false;
+    document.getElementById('dificultadSelect').disabled = false;
+
+    const guardarBtn = document.getElementById('guardarBtn');
+    if (guardarBtn) guardarBtn.disabled = false;
+  }
+
+  function setModeNeutral() {
+    // Al cargar, nada seleccionado aún
+    document.getElementById('customPrompt').disabled = false;
+    document.getElementById('tipoSelect').disabled = false;
+    document.getElementById('dificultadSelect').disabled = false;
+
+    const guardarBtn = document.getElementById('guardarBtn');
+    if (guardarBtn) guardarBtn.disabled = false;
+  }
+
+  // ---------- Carga de datos y wiring ----------
+  async function fetchData() {
+    const [casos, agentes] = await Promise.all([
+      fetch('/api/casos/').then(r => r.json()),
+      fetch('/api/agentes/').then(r => r.json())
+    ]);
+
+    const categorias = {};
+    casos.forEach(c => {
+      if (!categorias[c.categoria]) categorias[c.categoria] = [];
+      categorias[c.categoria].push(c);
+    });
+
+    const categoriaSelect = document.getElementById('categoriaSelect');
+    const defaultCatOpt = new Option('Seleccione una opción', '');
+    defaultCatOpt.disabled = true; defaultCatOpt.selected = true;
+    categoriaSelect.add(defaultCatOpt);
+    Object.keys(categorias).forEach(cat => categoriaSelect.add(new Option(cat, cat)));
+
+    categoriaSelect.onchange = () => {
+      const selected = categoriaSelect.value;
+      const casoSelect = document.getElementById('casoSelect');
+      casoSelect.innerHTML = '';
+      const defaultCasoOpt = new Option('Seleccione una opción', '');
+      defaultCasoOpt.disabled = true; defaultCasoOpt.selected = true;
+      casoSelect.add(defaultCasoOpt);
+      if (selected) {
+        casoSelect.disabled = false;
+        categorias[selected].forEach(c => casoSelect.add(new Option(c.titulo, c.id)));
+      } else {
+        casoSelect.disabled = true;
+      }
+    };
+
     const casoSelect = document.getElementById('casoSelect');
     casoSelect.innerHTML = '';
-    categorias[selected].forEach(c => casoSelect.add(new Option(c.titulo, c.id)));
-    casoSelect.dispatchEvent(new Event('change'));
-  };
+    const defaultCasoOpt2 = new Option('Seleccione una opción', '');
+    defaultCasoOpt2.disabled = true; defaultCasoOpt2.selected = true;
+    casoSelect.add(defaultCasoOpt2);
+    casoSelect.disabled = true;
 
-  categoriaSelect.dispatchEvent(new Event('change'));
+    const preguntaSelect = document.getElementById('preguntaSelect');
+    const promptPreview  = document.getElementById('promptPreview');
 
-  const preguntaSelect = document.getElementById('preguntaSelect');
-  const promptPreview = document.getElementById('promptPreview');
+    document.getElementById('casoSelect').onchange = async () => {
+      const casoId = document.getElementById('casoSelect').value;
+      const preguntas = await fetch(`/api/casos/${casoId}/preguntas/`).then(r => r.json());
 
-  document.getElementById('casoSelect').onchange = async () => {
-    const casoId = document.getElementById('casoSelect').value;
-    const preguntas = await fetch(`/api/casos/${casoId}/preguntas/`).then(r => r.json());
-
-    preguntaSelect.innerHTML = '';
-
-    const defaultOption = new Option('-- Selecciona un prompt --', '');
-    defaultOption.disabled = true;
-    defaultOption.selected = true;
-    preguntaSelect.add(defaultOption);
-    promptPreview.textContent = '';
-
-    preguntas.forEach(p => {
-      const preview = p.texto.length > 100 ? p.texto.slice(0, 90).replace(/(.{30})/g, '$1 ') + '...' : p.texto;
-      const opt = new Option(preview, p.id);
-      opt.title = p.texto;
-      opt.dataset.full = p.texto;
-      preguntaSelect.add(opt);
-    });
-  };
-
-  preguntaSelect.addEventListener('change', () => {
-    const full = preguntaSelect.options[preguntaSelect.selectedIndex].dataset.full || '';
-    promptPreview.textContent = full;
-    document.getElementById('customPrompt').value = '';
-  });
-
-  const agenteSelect = document.getElementById('agenteSelect');
-  agentes.forEach(a => agenteSelect.add(new Option(a.nombre, a.id)));
-
-  const customPrompt = document.getElementById('customPrompt');
-
-  customPrompt.addEventListener('input', () => {
-    if (customPrompt.value.trim()) {
-      preguntaSelect.disabled = true;
+      preguntaSelect.innerHTML = '';
+      const defaultOption = new Option('-- Selecciona un prompt --', '');
+      defaultOption.disabled = true; defaultOption.selected = true;
+      preguntaSelect.add(defaultOption);
       promptPreview.textContent = '';
-    } else {
-      preguntaSelect.disabled = false;
-      const selected = preguntaSelect.options[preguntaSelect.selectedIndex];
-      promptPreview.textContent = selected?.dataset.full || '';
-    }
-  });
-}
 
-let lastResultadoId = null;
+      preguntas.forEach(p => {
+        const preview = p.texto.length > 100
+          ? p.texto.slice(0, 90).replace(/(.{30})/g, '$1 ') + '...'
+          : p.texto;
+        const opt = new Option(preview, p.id);
+        opt.title = p.texto;
+        opt.dataset.full = p.texto;
+        preguntaSelect.add(opt);
+      });
 
-async function runAgent() {
-  const agente = document.getElementById('agenteSelect').value;
-  const pregunta = document.getElementById('preguntaSelect').value;
-  const customPrompt = document.getElementById('customPrompt').value;
-
-  if (!customPrompt.trim() && !pregunta) {
-    alert("Selecciona un prompt o escribe uno personalizado.");
-    return;
-  }
-
-  // Si no hay pregunta seleccionada, pon 0
-  const pregunta_id = pregunta ? pregunta : "0";
-
-  const res = await fetch(`/run/${pregunta_id}/${agente}/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': getCookie('csrftoken')
-    },
-    body: JSON.stringify({
-      prompt_manual: customPrompt
-    })
-  });
-
-  const data = await res.json();
-  document.getElementById('resultado').textContent = JSON.stringify(data, null, 2);
-
-  if (data.resultado_id) {
-    lastResultadoId = data.resultado_id;
-    const btn = document.getElementById('verResultadosBtn');
-    btn.disabled = false;
-    btn.classList.remove('btn-secondary');
-    btn.classList.add('btn-primary');
-    btn.onclick = () => {
-      window.location.href = `/resultados/${lastResultadoId}/`;
+      // Al cambiar de caso, volvemos a estado neutral
+      setModeNeutral();
     };
-  } else {
-    alert(data.error || "Hubo un error ejecutando el agente.");
+
+    // --- Exclusividad: si elige un prompt disponible -> desactivar custom + tipo + dificultad
+    preguntaSelect.addEventListener('change', () => {
+      const val = preguntaSelect.value;
+      if (val) {
+        const full = preguntaSelect.options[preguntaSelect.selectedIndex].dataset.full || '';
+        promptPreview.textContent = full;
+        setModePredef();
+      } else {
+        promptPreview.textContent = '';
+        setModeNeutral();
+      }
+    });
+
+    // --- Exclusividad: al hacer click en el textarea -> activar modo custom y resetear prompt disponible
+    const customPrompt = document.getElementById('customPrompt');
+    customPrompt.addEventListener('focus', () => {
+      setModeCustom();
+    });
+
+    // (Opcional) Si vacías el texto completo, puedes volver a estado neutral:
+    customPrompt.addEventListener('input', () => {
+      if (!customPrompt.value.trim()) {
+        setModeNeutral();
+      }
+    });
+
+    const agenteSelect = document.getElementById('agenteSelect');
+    agentes.forEach(a => agenteSelect.add(new Option(a.nombre, a.id)));
+
+    // Estado inicial
+    setModeNeutral();
   }
-}
 
+  let lastResultadoId = null;
 
-function getCookie(name) {
-  let cookieValue = null;
-  document.cookie.split(';').forEach(cookie => {
-    const trimmed = cookie.trim();
-    if (trimmed.startsWith(name + '=')) {
-      cookieValue = decodeURIComponent(trimmed.slice(name.length + 1));
+  async function runAgent() {
+    const agente   = document.getElementById('agenteSelect').value;
+    const pregunta = document.getElementById('preguntaSelect').value;
+    const custom   = document.getElementById('customPrompt').value;
+
+    if (!custom.trim() && !pregunta) {
+      alert("Selecciona un prompt o escribe uno personalizado.");
+      return;
     }
-  });
-  return cookieValue;
-}
 
-window.onload = fetchData;
+    // Mostrar modal de "ejecutando"
+    const runningModal = new bootstrap.Modal(document.getElementById('runningModal'));
+    runningModal.show();
+
+    try {
+      const pregunta_id = pregunta ? pregunta : "0";
+      const res = await fetch(`/run/${pregunta_id}/${agente}/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ prompt_manual: custom })
+      });
+
+      const data = await res.json();
+
+      // Cerrar "ejecutando"
+      runningModal.hide();
+
+      if (data.resultado_id) {
+        // Mostrar modal de éxito
+        const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+        successModal.show();
+
+        // Actualizar enlace "Evaluar Agente"
+        const evalLink = document.getElementById('evaluarAgenteLink');
+        if (evalLink) {
+          evalLink.classList.remove('disabled');
+          evalLink.href = `/resultados/${data.resultado_id}/`;
+        }
+      } else {
+        alert(data.error || "Hubo un error ejecutando el agente.");
+      }
+    } catch (err) {
+      // Cerrar "ejecutando" si hubo error de red/JS
+      runningModal.hide();
+      console.error(err);
+      alert("Error de conexión al ejecutar el agente.");
+    }
+  }
+
+  async function savePrompt() {
+    const casoId      = document.getElementById('casoSelect').value;
+    const texto       = document.getElementById('customPrompt').value;
+    const tipo        = document.getElementById('tipoSelect').value;
+    const dificultad  = document.getElementById('dificultadSelect').value;
+
+    if (!casoId)      return alert("Selecciona un caso de uso antes de guardar.");
+    if (!texto.trim()) return alert("Escribe un prompt personalizado para guardarlo.");
+    if (!tipo)        return alert("Selecciona un tipo de tarea.");
+    if (!dificultad)  return alert("Selecciona una dificultad.");
+
+    const res = await fetch(`/api/casos/${casoId}/preguntas/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      body: JSON.stringify({ texto, tipo, dificultad })
+    });
+
+    if (res.ok) {
+      const nueva = await res.json();
+      alert("Prompt guardado correctamente.");
+      document.getElementById('customPrompt').value = '';
+      const preguntaSelect = document.getElementById('preguntaSelect');
+      preguntaSelect.disabled = false;
+      const previewText = nueva.texto.length > 100 ? nueva.texto.slice(0,90).replace(/(.{30})/g,'$1 ')+'...' : nueva.texto;
+      const opt = new Option(previewText, nueva.id);
+      opt.title = nueva.texto; opt.dataset.full = nueva.texto;
+      preguntaSelect.add(opt);
+      preguntaSelect.value = nueva.id;
+      preguntaSelect.dispatchEvent(new Event('change')); // entra en modo predef
+    } else {
+      const err = await res.json().catch(() => ({}));
+      console.error(err);
+      alert("Error al guardar el prompt.");
+    }
+  }
+
+  function getCookie(name) {
+    let cookieValue = null;
+    document.cookie.split(';').forEach(cookie => {
+      const trimmed = cookie.trim();
+      if (trimmed.startsWith(name + '=')) {
+        cookieValue = decodeURIComponent(trimmed.slice(name.length + 1));
+      }
+    });
+    return cookieValue;
+  }
+
+  window.onload = fetchData;
 </script>
+  <!-- Importar JS de Bootstrap (necesario para el funcionamiento del modal) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

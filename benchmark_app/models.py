@@ -84,6 +84,13 @@ class Resultado(models.Model):
     agente = models.ForeignKey(Agente, on_delete=models.CASCADE, related_name="resultados")
     # pregunta = models.ForeignKey(Pregunta, on_delete=models.CASCADE, related_name="resultados")
     pregunta = models.ForeignKey(Pregunta, on_delete=models.CASCADE, null=True, blank=True, related_name="resultados")
+    estado = models.CharField(max_length=20,null =True,  choices=[
+        ('pending', 'Pending'),
+        ('in_progress', 'In progress'),
+        ('completed', 'Completed'),
+        ('error', 'Error'),
+    ])
+    # Respu
     respuesta = models.TextField()
     logs = models.TextField(blank=True)
     # Métricas objetivas:

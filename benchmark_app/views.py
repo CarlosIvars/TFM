@@ -2,6 +2,8 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.utils.timesince import timesince
+from django.http import JsonResponse
 from .models import (
     Categoria, CasoUso, Agente, Pregunta,
     Resultado, PreguntaEvaluacion, Evaluacion, RespuestaEvaluacion
@@ -25,10 +27,6 @@ def api_agentes(request):
     data = list(Agente.objects.values('id', 'nombre'))
     return Response(data)
 
-@api_view(["GET"])
-def api_preguntas_por_caso(request, caso_id):
-    preguntas = Pregunta.objects.filter(caso_uso_id=caso_id).values('id', 'texto')
-    return Response(list(preguntas))
 
 @api_view(["GET"])
 def poblar_casos_uso_desde_json(request):
@@ -95,6 +93,79 @@ def run_agente(request, pregunta_id, agente_id):
     )
 
     return Response({"message": "Ejecución completada", "resultado_id": resultado.id})
+
+@api_view(["GET", "POST"])
+def api_preguntas_por_caso(request, caso_id):
+    if request.method == "POST":
+        # Crear una nueva Pregunta asociada al caso de uso dado
+        data = request.data or {}
+        texto = data.get('texto')
+        tipo = data.get('tipo')
+        dificultad = data.get('dificultad')
+        if not texto or not tipo or not dificultad:
+            return Response({"error": "Faltan campos obligatorios."}, status=400)
+        caso = get_object_or_404(CasoUso, id=caso_id)
+        nueva_pregunta = Pregunta.objects.create(
+            texto=texto, tipo=tipo, dificultad=dificultad, caso_uso=caso
+        )
+        # Devolver la nueva pregunta (id y texto) en la respuesta
+        return Response({"id": nueva_pregunta.id, "texto": nueva_pregunta.texto}, status=201)
+    else:
+        # GET: listar preguntas del caso de uso
+        preguntas = Pregunta.objects.filter(caso_uso_id=caso_id).values('id', 'texto')
+        return Response(list(preguntas))
+
+@api_view(["GET"])
+def api_resultados_list(request):
+    """
+    Devuelve todas las ejecuciones (Resultado).
+    """
+    qs = Resultado.objects.select_related('agente', 'pregunta').order_by('-fecha')
+    data = []
+    for r in qs:
+        data.append({
+            "id": r.id,
+            "estado": r.estado,
+            "agente_id": r.agente_id,
+            "agente_nombre": getattr(r.agente, 'nombre', str(r.agente)),
+            "pregunta_id": r.pregunta_id,
+            "pregunta_preview": (r.pregunta.texto[:60] + '...') if r.pregunta and r.pregunta.texto else None,
+            "fecha": r.fecha.isoformat(),
+            "fecha_human": timesince(r.fecha) + " atrás" if r.fecha else "",
+            "run_id": str(r.run_id),
+        })
+    return Response(data)
+
+def resultados_list_view(request):
+    """
+    Página HTML de 'Evaluar Agente' (lista vacía inicialmente).
+    La columna izquierda se llena vía JS llamando a /api/resultados/.
+    """
+    context = {
+        "ejecucion": None,        # sin selección
+        "pasos_esperados": [],    # ajusta si necesitas
+    }
+    return render(request, "benchmark_app/resultados.html", context)
+
+
+@api_view(["GET"])
+def api_resultado_detail(request, resultado_id):
+    """
+    Devuelve el detalle mínimo de una ejecución, si necesitas usarlo por AJAX.
+    """
+    r = get_object_or_404(Resultado.objects.select_related('agente', 'pregunta'), id=resultado_id)
+    return Response({
+        "id": r.id,
+        "estado": r.estado,
+        "agente_id": r.agente_id,
+        "agente_nombre": getattr(r.agente, 'nombre', str(r.agente)),
+        "pregunta_id": r.pregunta_id,
+        "pregunta_texto": r.pregunta.texto if r.pregunta else None,
+        "respuesta": r.respuesta,
+        "logs": r.logs,
+        "fecha": r.fecha.isoformat(),
+        "run_id": str(r.run_id),
+    })
 
 @api_view(["POST"])
 def crear_evaluacion(request):
@@ -256,35 +327,54 @@ def metricas_view(request, agente_id):
         'media_tiempo': media_tiempo,
     })
 
-
+@api_view(["GET"])
 def evaluar_llm_view(request, resultado_id):
     resultado = get_object_or_404(Resultado, id=resultado_id)
+
+    if resultado.pregunta is None:
+        return JsonResponse({"error": "Este resultado no tiene 'pregunta' asociada."}, status=400)
+
     pregunta = resultado.pregunta
     caso_uso = pregunta.caso_uso
-    pasos = json.loads(caso_uso.pasos_esperados or "[]")
-    preguntas_evaluacion = [p.texto for p in caso_uso.preguntas_evaluacion.order_by('orden')]
 
-    # Llama al evaluador LLM
-    output_dict = evaluar_resultado_llm(
-        result=resultado.respuesta,
-        pasos=pasos,
-        logs=resultado.logs,
-        preguntas_evaluacion=preguntas_evaluacion
+    try:
+        pasos = json.loads(caso_uso.pasos_esperados or "[]")
+    except Exception:
+        pasos = []
+
+    preguntas_evaluacion = list(
+        caso_uso.preguntas_evaluacion.order_by('orden').values_list('texto', flat=True)
     )
 
-    # Crea la Evaluacion y las RespuestaEvaluacion
+    try:
+        output_dict = evaluar_resultado_llm(
+            result=resultado.respuesta or "",
+            pasos=pasos,
+            logs=resultado.logs or "",
+            preguntas_evaluacion=preguntas_evaluacion
+        )
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"Fallo evaluando con LLM: {e}"}, status=500)
+
     evaluacion = Evaluacion.objects.create(
         resultado=resultado,
         tipo='llm',
-        puntaje_global=None,  # Puedes poner la media si quieres parsearla
+        puntaje_global=None,
         comentario="Evaluación automática LLM"
     )
-    # Guarda cada respuesta
+
     for pregunta_texto, valor in output_dict.items():
-        pe = PreguntaEvaluacion.objects.get(caso_uso=caso_uso, texto=pregunta_texto)
-        RespuestaEvaluacion.objects.create(
-            evaluacion=evaluacion,
-            pregunta=pe,
-            valor=valor
-        )
-    return HttpResponse("<pre>Evaluación automática guardada:<br>{}</pre>".format(output_dict))
+        try:
+            pe = PreguntaEvaluacion.objects.get(caso_uso=caso_uso, texto=pregunta_texto)
+            RespuestaEvaluacion.objects.create(
+                evaluacion=evaluacion,
+                pregunta=pe,
+                valor=valor
+            )
+        except PreguntaEvaluacion.DoesNotExist:
+            # opcional: crear la pregunta si no existe
+            pass
+
+    return JsonResponse({"ok": True, "respuestas": output_dict}, status=200)

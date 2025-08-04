@@ -18,35 +18,36 @@ from django.contrib import admin
 from django.urls import path
 from benchmark_app.views import *
 
+
 urlpatterns = [
+    # ---- Admin ----
     path('admin/', admin.site.urls),
 
-    path('', home, name='home'),  
+    # ---- Páginas HTML (render templates) ----
+    path('', home, name='home'),
+    path('resultados/', resultados_list_view, name='resultados_list'),                
+    path('resultados/<int:ejecucion_id>/', resultado_view, name='resultado_view'),    
+    path('metricas/<int:agente_id>/', metricas_view, name='metricas_view'),
+    path('evaluar_llm/<int:resultado_id>/', evaluar_llm_view, name='evaluar_llm_view'),
 
-    # Poblar desde JSON
+    # ---- Utilidades ----
     path('poblar_casos_uso_json/', poblar_casos_uso_desde_json),
 
-    # API REST principales
-    path('api/casos/', api_casos),                    # Lista de casos de uso
-    path('api/agentes/', api_agentes),                # Lista de agentes
-    path('api/casos/<int:caso_id>/preguntas/', api_preguntas_por_caso),  # Preguntas por caso
+    # ---- API (JSON) ----
+    path('api/casos/', api_casos),
+    path('api/agentes/', api_agentes),
+    path('api/casos/<int:caso_id>/preguntas/', api_preguntas_por_caso),
 
-    # Nueva ejecución de agente (¡usa pregunta_id!)
+    # ejecuciones (run)
     path('run/<int:pregunta_id>/<int:agente_id>/', run_agente, name='run_agente'),
 
-    # Crear evaluación (POST)
+    # evaluaciones
     path('api/evaluacion/', crear_evaluacion, name='crear_evaluacion'),
-
-    # Resultados y evaluaciones por API
     path('api/pregunta/<int:pregunta_id>/resultados/', ver_resultados_pregunta, name='ver_resultados_pregunta'),
     path('api/resultado/<int:resultado_id>/evaluaciones/', ver_evaluaciones_resultado, name='ver_evaluaciones_resultado'),
 
-    # Vistas HTML auxiliares (personaliza según tu plantilla real)
-    path('resultados/<int:ejecucion_id>/', resultado_view, name='resultado_view'),
-    path('metricas/<int:agente_id>/', metricas_view, name='metricas_view'),
-    
-    # Evaluación LLM    
-    path('evaluar_llm/<int:resultado_id>/', evaluar_llm_view, name='evaluar_llm_view'),
-
+    # resultados (API de list y detail)
+    path('api/resultados/', api_resultados_list, name='api_resultados_list'),
+    path('api/resultados/<int:resultado_id>/', api_resultado_detail, name='api_resultado_detail'),
 ]
 
