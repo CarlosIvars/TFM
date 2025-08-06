@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Métricas de Agentes Web</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body { background-color: #f8f9fa; }
+    .container { max-width: 1200px; }
+    .header {
+      background-image: linear-gradient(135deg, #0d6efd, #66b3ff83);
+      color: white;
+      padding: 30px;
+      border-radius: 0.5rem;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg mb-4" style="background: linear-gradient(90deg, #0d6efd, #66b2ff); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div class="container d-flex justify-content-between align-items-center">
+      <span class="navbar-brand text-white fw-semibold mb-0 h1">Benchmark de Agentes</span>
+      <a href="/admin/login/?next=/admin/" class="btn btn-outline-light">Admin</a>
+    </div>
+  </nav>
+  <div class="container mt-4">
+    <div class="header">
+      <h1 class="h3">Métricas de Agentes de Web Scraping</h1>
+      <p class="mb-0">Visualiza indicadores agregados de las ejecuciones de los agentes.</p>
+    </div>
+    <!-- Barra de pestañas de navegación -->
+    <ul class="nav nav-tabs mb-4">
+      <li class="nav-item">
+        <a class="nav-link" href="/">Ejecutar Agente</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/resultados/">Evaluar Agente</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" aria-current="page" href="#">Métricas Agentes</a>
+      </li>
+    </ul>
+
+    <!-- Contenido de métricas (pendiente de implementación) -->
+    <div class="alert alert-info text-center">
+      Próximamente se mostrarán las métricas de los agentes aquí.
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

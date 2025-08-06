@@ -315,17 +315,9 @@ def resultado_view(request, ejecucion_id):
         'mensaje_exito': mensaje_exito
     })
 
-
-def metricas_view(request, agente_id):
-    agente = get_object_or_404(Agente, id=agente_id)
-    resultados = Resultado.objects.filter(agente=agente)
-    # Ejemplo de cálculo de métricas agregadas:
-    media_tiempo = resultados.aggregate(avg=models.Avg('tiempo_total_seg'))['avg']
-    return render(request, 'benchmark_app/metricas.html', {
-        'agente': agente,
-        'resultados': resultados,
-        'media_tiempo': media_tiempo,
-    })
+@api_view(["GET"])
+def metricas_view(request):
+    return render(request, 'benchmark_app/metricas.html')
 
 @api_view(["GET"])
 def evaluar_llm_view(request, resultado_id):

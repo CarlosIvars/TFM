@@ -27,7 +27,7 @@ urlpatterns = [
     path('', home, name='home'),
     path('resultados/', resultados_list_view, name='resultados_list'),                
     path('resultados/<int:ejecucion_id>/', resultado_view, name='resultado_view'),    
-    path('metricas/<int:agente_id>/', metricas_view, name='metricas_view'),
+    path('metricas/', metricas_view, name='metricas_view'),
     path('evaluar_llm/<int:resultado_id>/', evaluar_llm_view, name='evaluar_llm_view'),
 
     # ---- Utilidades ----
