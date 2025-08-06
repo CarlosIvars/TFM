@@ -366,7 +366,11 @@
 
       if (res.ok) {
         const nueva = await res.json();
-        alert("Prompt guardado correctamente.");
+        if (window.confirm("Prompt guardado correctamente.")) {
+          const modalEl = document.getElementById('nuevoPromptModal');
+          const modal = bootstrap.Modal.getInstance(modalEl);
+          modal?.hide(); // Cierra el modal si existe la instancia
+        }
         // Limpiar campos del modal
         document.getElementById('customPrompt').value = '';
         document.getElementById('tipoSelect').selectedIndex = 0;
