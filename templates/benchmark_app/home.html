@@ -66,34 +66,7 @@
         <label for="preguntaSelect" class="form-label">Prompt disponible</label>
         <select class="form-select" id="preguntaSelect"></select>
         <div id="promptPreview" class="mt-2"></div>
-      </div>
-
-      <div class="mb-3">
-        <label for="customPrompt" class="form-label">Prompt personalizado (opcional)</label>
-        <textarea class="form-control" id="customPrompt" rows="3" placeholder="O escribe aquí tu prompt..."></textarea>
-      </div>
-
-      <!-- Nuevos desplegables para Tipo y Dificultad -->
-      <div class="mb-3">
-        <label for="tipoSelect" class="form-label">Tipo de tarea</label>
-        <select id="tipoSelect" class="form-select">
-          <option disabled selected value="">Seleccione un tipo</option>
-          <option value="extraccion">Extracción</option>
-          <option value="navegacion">Navegación</option>
-          <option value="interaccion">Interacción</option>
-          <option value="login">Login</option>
-          <option value="simulacion_compra">Simulación de compra</option>
-          <option value="visual">Visual</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label for="dificultadSelect" class="form-label">Dificultad</label>
-        <select id="dificultadSelect" class="form-select">
-          <option disabled selected value="">Seleccione dificultad</option>
-          <option value="facil">Fácil</option>
-          <option value="media">Media</option>
-          <option value="dificil">Difícil</option>
-        </select>
+        <button class="btn btn-outline-primary mt-2" onclick="abrirModalPrompt()">Crear nuevo prompt</button>
       </div>
 
       <div class="mb-3">
@@ -101,9 +74,55 @@
         <select class="form-select" id="agenteSelect"></select>
       </div>
 
-      <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-        <button class="btn btn-primary me-md-2" onclick="runAgent()">Ejecutar Agente</button>
-        <button class="btn btn-primary me-md-2" id="guardarBtn" onclick="savePrompt()">Guardar</button>
+      <div class="mb-3 text-end">
+        <button class="btn btn-primary" onclick="runAgent()">Ejecutar Agente</button>
+      </div>
+    </div>
+
+    <!-- MODAL: Crear nuevo prompt -->
+    <div class="modal fade" id="nuevoPromptModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Nuevo Prompt Personalizado</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <strong id="contextoSeleccionado"></strong>
+            </div>
+            <div class="mb-3">
+              <label for="customPrompt" class="form-label">Prompt personalizado</label>
+              <textarea class="form-control" id="customPrompt" rows="3" placeholder="Escribe aquí tu prompt..."></textarea>
+            </div>
+            <div class="mb-3">
+              <label for="tipoSelect" class="form-label">Tipo de tarea</label>
+              <select id="tipoSelect" class="form-select">
+                <option disabled selected value="">Seleccione un tipo</option>
+                <option value="extraccion">Extracción</option>
+                <option value="navegacion">Navegación</option>
+                <option value="interaccion">Interacción</option>
+                <option value="login">Login</option>
+                <option value="simulacion_compra">Simulación de compra</option>
+                <option value="visual">Visual</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Dificultad</label>
+              <div class="btn-group w-100" role="group" id="dificultadToggle">
+                <input type="radio" class="btn-check" name="dificultad" id="facil" value="facil" autocomplete="off">
+                <label class="btn btn-outline-primary" for="facil">Fácil</label>
+                <input type="radio" class="btn-check" name="dificultad" id="media" value="media" autocomplete="off">
+                <label class="btn btn-outline-primary" for="media">Media</label>
+                <input type="radio" class="btn-check" name="dificultad" id="dificil" value="dificil" autocomplete="off">
+                <label class="btn btn-outline-primary" for="dificil">Difícil</label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-primary" onclick="savePrompt()">Guardar</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -141,6 +160,7 @@
     </div>
 
   </div> <!-- /container -->
+
 
   <script>
   // ---------- Helpers de exclusividad ----------
@@ -373,6 +393,24 @@
       alert("Error al guardar el prompt.");
     }
   }
+
+  function abrirModalPrompt() {
+    const categoria = document.getElementById('categoriaSelect');
+    const caso = document.getElementById('casoSelect');
+    if (!categoria.value || !caso.value) {
+      alert("Debes seleccionar una categoría y un caso de uso antes de crear un nuevo prompt.");
+      return;
+    }
+    const texto = `Categoría: ${categoria.value} \n Caso de uso: ${caso.options[caso.selectedIndex].text}`;
+    document.getElementById('contextoSeleccionado').textContent = texto;
+    new bootstrap.Modal(document.getElementById('nuevoPromptModal')).show();
+  }
+
+  function getSelectedDificultad() {
+      const radios = document.querySelectorAll('#dificultadToggle input[type=radio]');
+      for (const r of radios) if (r.checked) return r.value;
+      return '';
+    }
 
   function getCookie(name) {
     let cookieValue = null;
