@@ -108,6 +108,7 @@
 
   <!-- Scripts de gráficas -->
 <!-- Scripts de gráficas -->
+<!-- Scripts de gráficas -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
 <script>
   // Gráfica por categoría
@@ -144,65 +145,7 @@
     }
   });
 
-  // Gráficas agrupadas por categoría (casos de uso, agente X, leyenda caso de uso, humano/llm doble barra)
- {% for cat in categorias_data.categorias %}
-    
-      // --- OJO: siempre inyectar como string y parsear en JS
-      const perf = JSON.parse(`{{ performance_grouped_by_cat|get_item:cat|escapejs }}`);
-      const labels = JSON.parse(perf.labels_json);
-      const datasets = JSON.parse(perf.datasets_json);
-
-      new Chart(document.getElementById('groupedCaseChart_{{ cat|slugify }}').getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: datasets
-        },
-        options: {
-          responsive: true,
-          aspectRatio: 2.2,
-          plugins: {
-            title: { display: true, text: 'Agente vs Caso de uso', font: { size: 18 } },
-            legend: {
-              display: true,
-              labels: {
-                // Solo muestra una vez cada caso de uso
-                filter: function(item, chart) {
-                  // Mostramos solo los "casos de uso" (no doble: Humano/LLM)
-                  // Como la label es el caso de uso, solo primer dataset con ese label
-                  return chart.data.datasets.findIndex(ds => ds.label === item.text) === item.datasetIndex && !item.text.includes('LLM');
-                }
-              }
-            },
-            tooltip: {
-              callbacks: {
-                label: function(ctx) {
-                  // Lógica según si es Humano o LLM
-                  const tipo = ctx.dataset.backgroundColor === 'rgba(255,255,255,0)' ? 'LLM' : 'Humano';
-                  return `${ctx.dataset.label} (${tipo}): ${ctx.raw ?? '-'} %`;
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100,
-              title: { display: true, text: '% de pasos cumplidos', font: { size: 15 } },
-              ticks: { font: { size: 13 } }
-            },
-            x: {
-              title: { display: true, text: 'Agente', font: { size: 15 } },
-              ticks: { font: { size: 13 } },
-              stacked: false
-            }
-          }
-        }
-      });
-
-  {% endfor %}
-
-
+  
 
   // Cambio de categoría con los botones
   document.querySelectorAll('.category-btn').forEach(btn => {

@@ -2,16 +2,25 @@ import json
 from django.db.models import Avg
 from ..models import Agente, CasoUso, Evaluacion, RespuestaEvaluacion, Resultado
 
+def fix_none(obj):
+    # Recursivo: convierte None en 0 o '' o [] según el tipo
+    if isinstance(obj, dict):
+        return {k: fix_none(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [fix_none(x) for x in obj]
+    elif obj is None:
+        return 0
+    return obj
+
 def calcular_metricas():
     satisfaccion_text = "Nivel de satisfacción global del agente (1-5)"
-
     agentes = list(Agente.objects.all())
     casos = list(CasoUso.objects.all())
 
     # 1. Mapear casos por categoría
     categoria_dict = {}
     for caso in casos:
-        cat = caso.categoria
+        cat = str(caso.categoria)  # forzamos a string
         if cat not in categoria_dict:
             categoria_dict[cat] = []
         categoria_dict[cat].append(caso)
@@ -51,7 +60,7 @@ def calcular_metricas():
         if resp.valor.strip().lower() == "si":
             success_counts_llm[key]["si"] += 1
 
-    # 3. Desempeño por categoría (promedio de todos los casos y agentes)
+    # 3. Desempeño por categoría (promedio)
     cat_labels = []
     cat_hum_data = []
     cat_llm_data = []
@@ -67,63 +76,30 @@ def calcular_metricas():
                 if key in success_counts_llm:
                     llm_tot += success_counts_llm[key]["total"]
                     llm_si += success_counts_llm[key]["si"]
-        cat_labels.append(str(cat))
+        cat_labels.append(cat)
         cat_hum_data.append(round((hum_si/hum_tot)*100, 2) if hum_tot > 0 else 0.0)
         cat_llm_data.append(round((llm_si/llm_tot)*100, 2) if llm_tot > 0 else 0.0)
 
     categorias_data = {
-        "labels_json": json.dumps(cat_labels),
+        "labels_json": json.dumps(cat_labels, ensure_ascii=False),
         "hum_data_json": json.dumps(cat_hum_data),
         "llm_data_json": json.dumps(cat_llm_data),
-        "categorias": list(categoria_dict.keys())
+        "categorias": cat_labels
     }
 
-    # 4. Desempeño por caso de uso dentro de cada categoría
-    performance_data_by_cat = {}
-    for cat, casos_cat in categoria_dict.items():
-        perf_data = []
-        for caso in casos_cat:
-            labels = []
-            human_vals = []
-            llm_vals = []
-            for agente in agentes:
-                key = (caso.id, agente.id)
-                hum_rate = None
-                llm_rate = None
-                if key in success_counts_hum:
-                    data = success_counts_hum[key]
-                    if data["total"] > 0:
-                        hum_rate = (data["si"] / data["total"]) * 100.0
-                if key in success_counts_llm:
-                    data = success_counts_llm[key]
-                    if data["total"] > 0:
-                        llm_rate = (data["si"] / data["total"]) * 100.0
-                if hum_rate is not None or llm_rate is not None:
-                    labels.append(agente.nombre)
-                    human_vals.append(hum_rate if hum_rate is not None else 0.0)
-                    llm_vals.append(llm_rate if llm_rate is not None else 0.0)
-            if labels:
-                perf_data.append({
-                    "case": caso.titulo,
-                    "labels_json": json.dumps(labels),
-                    "human_data_json": json.dumps([round(v, 2) for v in human_vals]),
-                    "llm_data_json": json.dumps([round(v, 2) for v in llm_vals])
-                })
-        performance_data_by_cat[cat] = perf_data
-
-    
+    # 4. Desempeño por agente y caso de uso, agrupado por categoría (para las gráficas grandes)
     performance_grouped_by_cat = {}
     for cat, casos_cat in categoria_dict.items():
-        agent_labels = [a.nombre for a in agentes]
+        agent_labels = [str(a.nombre) for a in agentes]
         datasets = []
         colors = [
-            'rgba(54, 162, 235, 0.7)',  # Azul
-            'rgba(255, 99, 132, 0.7)',  # Rojo
-            'rgba(255, 206, 86, 0.7)',  # Amarillo
-            'rgba(75, 192, 192, 0.7)',  # Verde agua
-            'rgba(153, 102, 255, 0.7)', # Violeta
-            'rgba(255, 159, 64, 0.7)',  # Naranja
-            'rgba(100, 100, 100, 0.7)', # Gris
+            'rgba(54, 162, 235, 0.7)',
+            'rgba(255, 99, 132, 0.7)',
+            'rgba(255, 206, 86, 0.7)',
+            'rgba(75, 192, 192, 0.7)',
+            'rgba(153, 102, 255, 0.7)',
+            'rgba(255, 159, 64, 0.7)',
+            'rgba(100, 100, 100, 0.7)',
         ]
         color_idx = 0
         for caso in casos_cat:
@@ -144,9 +120,8 @@ def calcular_metricas():
                 data_hum.append(round(val_hum, 2))
                 data_llm.append(round(val_llm, 2))
 
-            # --- Humano (barras sólidas)
             datasets.append({
-                "label": caso.titulo,
+                "label": str(caso.titulo),
                 "data": data_hum,
                 "backgroundColor": color,
                 "borderColor": border_color,
@@ -155,28 +130,25 @@ def calcular_metricas():
                 "categoryPercentage": 0.9,
                 "order": color_idx*2,
             })
-            # --- LLM (barras vacías con borde y opcional dash)
             datasets.append({
-                "label": caso.titulo,
+                "label": str(caso.titulo),
                 "data": data_llm,
-                "backgroundColor": "rgba(255,255,255,0)",  # Transparente
+                "backgroundColor": "rgba(255,255,255,0)",
                 "borderColor": border_color,
                 "borderWidth": 3,
                 "barPercentage": 0.45,
                 "categoryPercentage": 0.9,
-                "borderDash": [6, 5],  # Opcional: línea discontinua
+                "borderDash": [6, 5],
                 "order": color_idx*2+1,
             })
         performance_grouped_by_cat[cat] = {
-            "labels_json": json.dumps(agent_labels),
-            "datasets_json": json.dumps(datasets)
+            "labels_json": json.dumps(agent_labels, ensure_ascii=False),
+            "datasets_json": json.dumps(fix_none(datasets), ensure_ascii=False)
         }
 
-        
-    # 5. Satisfacción global por agente (humanos y LLM)
+    # 5. Satisfacción global por agente (usuarios/llm)
     satisfaccion_hum = {}
     satisfaccion_llm = {}
-
     evaluaciones_hum = Evaluacion.objects.filter(tipo='humano').select_related('resultado__agente')
     for ev in evaluaciones_hum:
         if ev.puntaje_global is None:
@@ -211,18 +183,20 @@ def calcular_metricas():
             avg_h = satisfaccion_hum[agente.id]["suma"] / satisfaccion_hum[agente.id]["count"]
         if agente.id in satisfaccion_llm and satisfaccion_llm[agente.id]["count"] > 0:
             avg_l = satisfaccion_llm[agente.id]["suma"] / satisfaccion_llm[agente.id]["count"]
-        if avg_h is not None or avg_l is not None:
-            sat_labels.append(agente.nombre)
-            sat_hum_vals.append(round(avg_h, 2) if avg_h is not None else 0.0)
-            sat_llm_vals.append(round(avg_l, 2) if avg_l is not None else 0.0)
-
+        sat_labels.append(str(agente.nombre))
+        sat_hum_vals.append(round(avg_h, 2) if avg_h is not None else 0.0)
+        sat_llm_vals.append(round(avg_l, 2) if avg_l is not None else 0.0)
+    
+    sat_llm_vals = fix_none(sat_llm_vals)
+    sat_hum_vals = fix_none(sat_hum_vals)
     satisfaccion_data = {
-        "labels_json": json.dumps(sat_labels),
-        "hum_data_json": json.dumps(sat_hum_vals),
-        "llm_data_json": json.dumps(sat_llm_vals)
-    }
+            "labels_json": json.dumps(sat_labels, ensure_ascii=False),
+            "hum_data_json": json.dumps(sat_hum_vals),
+            "llm_data_json": json.dumps(sat_llm_vals)
+        }
 
-    # 6. Pros y contras automáticos (como antes, puedes copiar la lógica del ejemplo anterior)
+
+    # 6. Pros y contras
     pros_cons = {}
     agente_success_rate = {}
     for agente in agentes:
@@ -266,7 +240,7 @@ def calcular_metricas():
         sr = agente_success_rate.get(agente.id)
         sa = agente_sat_avg.get(agente.id)
         tm = agente_tiempo_avg.get(agente.id)
-        nombre = agente.nombre
+        nombre = str(agente.nombre)
 
         # Pros
         if sr is not None:
@@ -310,10 +284,8 @@ def calcular_metricas():
         pros_cons[nombre] = {"pros": pros, "cons": cons}
 
     return {
-    "categorias_data": categorias_data,
-    "performance_data_by_cat": performance_data_by_cat,  # (si sigues usando las otras)
-    "performance_grouped_by_cat": performance_grouped_by_cat,  # <- añade esto
-    "satisfaccion_data": satisfaccion_data,
-    "pros_cons": pros_cons
-}
-
+        "categorias_data": categorias_data,
+        "performance_grouped_by_cat": {},
+        "satisfaccion_data": satisfaccion_data,
+        "pros_cons": pros_cons
+    }

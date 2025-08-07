@@ -319,7 +319,10 @@ def resultado_view(request, ejecucion_id):
 @api_view(["GET"])
 def metricas_view(request):
     # Calcula las métricas agregadas y prepara los datos para la plantilla
+    print("Calculando métricas...")
     context = metricas.calcular_metricas()
+    
+    print("Métricas calculadas:", context)
     return render(request, 'benchmark_app/metricas.html', context)
 
 @api_view(["GET"])
