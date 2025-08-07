@@ -1,8 +1,10 @@
+{% load static %}
+{% load extras %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Métricas de Agentes Web</title>
+  <title>Métricas de Agentes</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
     body { background-color: #f8f9fa; }
@@ -15,21 +17,23 @@
       margin-bottom: 30px;
       text-align: center;
     }
+    .panel { background: white; border-radius: 8px; box-shadow: 0 0 8px rgba(0,0,0,0.05); }
   </style>
 </head>
 <body>
+  <!-- Navbar -->
   <nav class="navbar navbar-expand-lg mb-4" style="background: linear-gradient(90deg, #0d6efd, #66b2ff); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
     <div class="container d-flex justify-content-between align-items-center">
       <span class="navbar-brand text-white fw-semibold mb-0 h1">Benchmark de Agentes</span>
       <a href="/admin/login/?next=/admin/" class="btn btn-outline-light">Admin</a>
     </div>
   </nav>
-  <div class="container mt-4">
+  <div class="container">
     <div class="header">
-      <h1 class="h3">Métricas de Agentes de Web Scraping</h1>
-      <p class="mb-0">Visualiza métricas de las ejecuciones de los agentes y valoraciones de los usuarios.</p>
+      <h1 class="h3">Métricas de Agentes</h1>
+      <p class="mb-0">Visión general del rendimiento y satisfacción de cada agente.</p>
     </div>
-    <!-- Barra de pestañas de navegación -->
+    <!-- Tabs de navegación -->
     <ul class="nav nav-tabs mb-4">
       <li class="nav-item">
         <a class="nav-link" href="/">Ejecutar Agente</a>
@@ -42,11 +46,225 @@
       </li>
     </ul>
 
-    <!-- Contenido de métricas (pendiente de implementación) -->
-    <div class="alert alert-info text-center">
-      Próximamente se mostrarán las métricas de los agentes aquí.
+    <h4 class="mb-3">Desempeño por Categoría</h4>
+    <div class="panel p-3 mb-4">
+      <canvas id="chartCategoria" width="600" height="300"></canvas>
     </div>
+
+    <!-- Botonera de categorías -->
+    <div class="mb-3">
+      <div class="btn-group" role="group" aria-label="Categorías">
+        {% for cat in categorias_data.categorias %}
+          <button type="button" class="btn btn-outline-primary category-btn {% if forloop.first %}active{% endif %}" 
+            data-categoria="{{ cat }}">{{ cat }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Gráficas de casos de uso por categoría -->
+  
+    {% for cat in categorias_data.categorias %}
+      <div class="category-cases" data-categoria="{{ cat }}" style="{% if not forloop.first %}display:none;{% endif %}">
+        <h5 class="mt-4 mb-2">Desempeño por agente y caso de uso ({{ cat }})</h5>
+        <div class="panel p-3 mb-4">
+          <canvas id="groupedCaseChart_{{ cat|slugify }}" width="1200" height="400"></canvas>
+        </div>
+      </div>
+    {% endfor %}
+
+
+    <!-- Satisfacción global -->
+    <h4 class="mt-5 mb-3">Satisfacción de Usuarios vs Evaluación LLM</h4>
+    <div class="panel p-3 mb-4">
+      <canvas id="chartSatisfaccion" width="600" height="300"></canvas>
+    </div>
+
+    <!-- Pros/Contras -->
+    <h4 class="mt-5 mb-3">Pros y Contras por Agente</h4>
+    {% for agent_name, pc in pros_cons.items %}
+      <div class="mb-4">
+        <h5 class="mb-2">{{ agent_name }}</h5>
+        <div class="row">
+          <div class="col-md-6">
+            <strong>Pros:</strong>
+            <ul class="ps-3">
+              {% for pro in pc.pros %}
+                <li>{{ pro }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <strong>Contras:</strong>
+            <ul class="ps-3">
+              {% for con in pc.cons %}
+                <li>{{ con }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+
+  <!-- Scripts de gráficas -->
+<!-- Scripts de gráficas -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+<script>
+  // Gráfica por categoría
+  new Chart(document.getElementById('chartCategoria').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: {{ categorias_data.labels_json|safe }},
+      datasets: [
+        {
+          label: 'Humano',
+          data: {{ categorias_data.hum_data_json|safe }},
+          backgroundColor: 'rgba(54, 162, 235, 0.7)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        },
+        {
+          label: 'LLM',
+          data: {{ categorias_data.llm_data_json|safe }},
+          backgroundColor: 'rgba(255, 159, 64, 0.7)',
+          borderColor: 'rgba(255, 159, 64, 1)',
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        title: { display: true, text: 'Desempeño promedio por Categoría' }
+      },
+      scales: {
+        y: { beginAtZero: true, max: 100, title: { display: true, text: '% de pasos cumplidos' } },
+        x: { title: { display: true, text: 'Categoría' }, ticks: { maxRotation: 45, minRotation: 45 } }
+      }
+    }
+  });
+
+  // Gráficas agrupadas por categoría (casos de uso, agente X, leyenda caso de uso, humano/llm doble barra)
+ {% for cat in categorias_data.categorias %}
+    
+      // --- OJO: siempre inyectar como string y parsear en JS
+      const perf = JSON.parse(`{{ performance_grouped_by_cat|get_item:cat|escapejs }}`);
+      const labels = JSON.parse(perf.labels_json);
+      const datasets = JSON.parse(perf.datasets_json);
+
+      new Chart(document.getElementById('groupedCaseChart_{{ cat|slugify }}').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          aspectRatio: 2.2,
+          plugins: {
+            title: { display: true, text: 'Agente vs Caso de uso', font: { size: 18 } },
+            legend: {
+              display: true,
+              labels: {
+                // Solo muestra una vez cada caso de uso
+                filter: function(item, chart) {
+                  // Mostramos solo los "casos de uso" (no doble: Humano/LLM)
+                  // Como la label es el caso de uso, solo primer dataset con ese label
+                  return chart.data.datasets.findIndex(ds => ds.label === item.text) === item.datasetIndex && !item.text.includes('LLM');
+                }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  // Lógica según si es Humano o LLM
+                  const tipo = ctx.dataset.backgroundColor === 'rgba(255,255,255,0)' ? 'LLM' : 'Humano';
+                  return `${ctx.dataset.label} (${tipo}): ${ctx.raw ?? '-'} %`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: { display: true, text: '% de pasos cumplidos', font: { size: 15 } },
+              ticks: { font: { size: 13 } }
+            },
+            x: {
+              title: { display: true, text: 'Agente', font: { size: 15 } },
+              ticks: { font: { size: 13 } },
+              stacked: false
+            }
+          }
+        }
+      });
+
+  {% endfor %}
+
+
+
+  // Cambio de categoría con los botones
+  document.querySelectorAll('.category-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const cat = btn.dataset.categoria;
+      document.querySelectorAll('.category-cases').forEach(div => {
+        div.style.display = div.dataset.categoria === cat ? 'block' : 'none';
+      });
+    });
+  });
+
+  // Satisfacción global por agente
+  (function() {
+    const ctxSat = document.getElementById('chartSatisfaccion').getContext('2d');
+    new Chart(ctxSat, {
+      type: 'bar',
+      data: {
+        labels: {{ satisfaccion_data.labels_json|safe }},
+        datasets: [
+          {
+            label: 'Valoración Usuarios',
+            data: {{ satisfaccion_data.hum_data_json|safe }},
+            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          },
+          {
+            label: 'Valoración LLM',
+            data: {{ satisfaccion_data.llm_data_json|safe }},
+            backgroundColor: 'rgba(255, 159, 64, 0.7)',
+            borderColor: 'rgba(255, 159, 64, 1)',
+            borderWidth: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: 'Satisfacción Promedio por Agente (Usuarios vs LLM)'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 5,
+            title: {
+              display: true,
+              text: 'Puntuación (1-5)'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Agente'
+            }
+          }
+        }
+      }
+    });
+  })();
+</script>

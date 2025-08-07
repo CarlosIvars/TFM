@@ -9,6 +9,7 @@ from .models import (
     Resultado, PreguntaEvaluacion, Evaluacion, RespuestaEvaluacion
 )
 from .llm_eval.evaluator import evaluar_resultado_llm
+from .llm_eval import metricas
 import json
 import os
 
@@ -317,7 +318,9 @@ def resultado_view(request, ejecucion_id):
 
 @api_view(["GET"])
 def metricas_view(request):
-    return render(request, 'benchmark_app/metricas.html')
+    # Calcula las métricas agregadas y prepara los datos para la plantilla
+    context = metricas.calcular_metricas()
+    return render(request, 'benchmark_app/metricas.html', context)
 
 @api_view(["GET"])
 def evaluar_llm_view(request, resultado_id):
