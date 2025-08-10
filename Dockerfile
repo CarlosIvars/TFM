@@ -37,4 +37,6 @@ RUN useradd -m appuser \
 USER appuser
 
 EXPOSE 8000
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "--capture-output", "--enable-stdio-inheritance", "benchmark_django.wsgi:application"]
+# CMD ["gunicorn", "-b", "0.0.0.0:8000", "--capture-output", "--enable-stdio-inheritance", "benchmark_django.wsgi:application"]
+# gunicorn -b 0.0.0.0:8000 --timeout 120 --capture-output --enable-stdio-inheritance benchmark_django.wsgi:application
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "--timeout", "120", "--capture-output", "--enable-stdio-inheritance", "benchmark_django.wsgi:application"]

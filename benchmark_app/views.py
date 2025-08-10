@@ -10,11 +10,12 @@ from .models import (
 )
 # from .llm_eval.evaluator import evaluar_resultado_llm
 from .llm_eval.evaluator import evaluar_llm_sobre_pasos_y_satisfaccion
-
+from benchmark_app.agents.browser_use_agent import BrowserUseAgent
 from .llm_eval import metricas
 import json
 import os
-
+from django.db import transaction
+from threading import Thread
 def home(request):
     return render(request, 'benchmark_app/home.html')
 
@@ -62,74 +63,76 @@ def poblar_casos_uso_desde_json(request):
     return HttpResponse("<br>".join(resumen))
 
 
+def _run_agente_job(resultado_id: int, prompt: str, agente_id: int):
+    resultado = Resultado.objects.get(pk=resultado_id)
+    try:
+        # in_progress
+        resultado.estado = "in_progress"
+        resultado.save(update_fields=["estado"])
+
+        agente = get_object_or_404(Agente, id=agente_id)
+        runner = BrowserUseAgent(llm_model=agente.modelo_llm, use_azure=True)
+
+        out = runner.run_case(prompt)
+
+        acciones = out.get("acciones_realizadas") or []
+        resultado.respuesta = out.get("respuesta") or ""
+        resultado.logs = out.get("logs") or ""
+        resultado.tiempo_total_seg = out.get("tiempo_total_seg")
+        resultado.acciones_realizadas = acciones
+        resultado.n_acciones_realizadas = len(acciones)
+        resultado.cpu_usado = out.get("cpu_usado")
+        resultado.ram_usada_mb = out.get("ram_usada_mb")
+        resultado.porcentaje_pasos_ok = out.get("porcentaje_pasos_ok")
+
+        # estado final
+        resultado.estado = "completed" if out.get("exito", False) else "error"
+        print("DEBUG: Resultado final completado con exito")
+        resultado.save()
+
+    except Exception as e:
+        resultado.estado = "error"
+        resultado.respuesta = f"Error: {e}"
+        resultado.save(update_fields=["estado", "respuesta"])
+
+
 @api_view(["POST"])
 def run_agente(request, pregunta_id, agente_id):
-    from benchmark_app.agents.browser_use_agent import BrowserUseAgent
-
-    # 1) Datos de entrada
-    data = getattr(request, "data", {}) or {}
+    """
+    Lanza la ejecución del agente en un hilo (no bloquea la petición).
+    Devuelve 202 + resultado_id para que el front haga polling.
+    """
+    data = request.data or {}
     prompt_manual = (data.get("prompt_manual") or "").strip()
 
-    # 2) Cargar agente
-    agente = get_object_or_404(Agente, id=agente_id)
-
-    # 3) Resolver pregunta y prompt
+    # Resolver pregunta y prompt
     pregunta_obj = None
     if int(pregunta_id) != 0:
-        # Hay pregunta seleccionada
         pregunta_obj = get_object_or_404(Pregunta, id=pregunta_id)
 
     if pregunta_obj:
-        # Si hay pregunta, el prompt es el manual si viene, si no el texto de la pregunta
         prompt = prompt_manual or pregunta_obj.texto
     else:
-        # Prompt libre: debe venir relleno
         if not prompt_manual:
             return Response({"error": "Prompt personalizado vacío"}, status=400)
         prompt = prompt_manual
 
-    # 4) Crear Resultado en 'pending'
-    resultado = Resultado.objects.create(
-        agente=agente,
-        pregunta=pregunta_obj,   # <- IMPORTANTE: None o instancia de Pregunta, nunca ""
-        estado="pending",
-        respuesta="",
-        logs="",
-    )
-
-    try:
-        # 5) Marcar 'in_progress'
-        resultado.estado = "in_progress"
-        resultado.save(update_fields=["estado"])
-
-        # 6) Ejecutar agente
-        agente_runner = BrowserUseAgent(llm_model=agente.modelo_llm)
-        resultado_dict = agente_runner.run_case(prompt)
-
-        acciones = resultado_dict.get("acciones_realizadas") or []
-
-        # 7) Guardar resultados + 'completed'
-        Resultado.objects.filter(pk=resultado.pk).update(
-            respuesta=resultado_dict.get("respuesta") or "",
-            logs=resultado_dict.get("logs", ""),
-            tiempo_total_seg=resultado_dict.get("tiempo_total_seg"),
-            acciones_realizadas=acciones,
-            n_acciones_realizadas=len(acciones),
-            cpu_usado=resultado_dict.get("cpu_usado"),
-            ram_usada_mb=resultado_dict.get("ram_usada_mb"),
-            porcentaje_pasos_ok=resultado_dict.get("porcentaje_pasos_ok"),
-            estado="completed",
+    # Crear Resultado en 'pending'
+    with transaction.atomic():
+        resultado = Resultado.objects.create(
+            agente_id=agente_id,
+            pregunta=pregunta_obj,
+            estado="pending",
+            respuesta="",
+            logs="",
         )
 
-        return Response({"message": "Ejecución completada", "resultado_id": resultado.id})
+    # Hilo background
+    t = Thread(target=_run_agente_job, args=(resultado.id, prompt, agente_id), daemon=True)
+    t.start()
 
-    except Exception as e:
-        # 8) Marcar 'error' y guardar el motivo en 'respuesta'
-        Resultado.objects.filter(pk=resultado.pk).update(
-            estado="error",
-            respuesta=f"Error: {e}",
-        )
-        return Response({"error": f"Fallo ejecutando el agente: {e}"}, status=500)
+    return Response({"resultado_id": resultado.id, "estado": "pending"}, status=202)
+
 
 @api_view(["GET", "POST"])
 def api_preguntas_por_caso(request, caso_id):
