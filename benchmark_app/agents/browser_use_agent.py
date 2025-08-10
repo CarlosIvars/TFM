@@ -67,7 +67,8 @@ class BrowserUseAgent:
                 azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
                 openai_api_key=os.environ["AZURE_OPENAI_KEY"],
                 temperature=0.0,
-                max_retries=30
+                max_retries=30,
+                request_timeout=25,
             )
         else:
             print("DEBUG: Usando OpenAI directo")
@@ -79,6 +80,19 @@ class BrowserUseAgent:
 
         # Aquí la sesión del browser (esto parece OK)
         try:
+            self.browser_config = BrowserConfig(
+                headless=True,
+                browser_channel="chromium",
+                chromium_args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--disable-features=IsolateOrigins,site-per-process",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                ],
+            )
             self.browser_session = BrowserSession(
                 browser_profile=BrowserProfile(
                     viewport_expansion=-1,
@@ -135,6 +149,7 @@ class BrowserUseAgent:
             task=task,
             llm=self.llm,
             browser_session=self.browser_session,
+            browser_config=self.browser_config,
             use_vision=self.use_vision,
         )
         print("DEBUG: Agent creado, lanzando run()")
@@ -171,7 +186,7 @@ class BrowserUseAgent:
         try:
             print("DEBUG: Lanzando asyncio.run(async_run_task())")
             run_data = asyncio.run(self.async_run_task(task_prompt))
-            exito = run_data["success"] 
+            exito = run_data.get("success", False)
             print("DEBUG: Ejecución exitosa")
             
             
