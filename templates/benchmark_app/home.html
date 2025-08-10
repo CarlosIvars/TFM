@@ -73,7 +73,7 @@
         <select class="form-select" id="agenteSelect"></select>
       </div>
       <div class="mb-3 text-end">
-        <button class="btn btn-primary" onclick="runAgent()">Ejecutar Agente</button>
+        <button id="runBtn" class="btn btn-primary" onclick="runAgent()">Ejecutar Agente</button>
       </div>
     </div>
 
@@ -125,20 +125,30 @@
     </div>
 
     <!-- Modal mientras ejecuta -->
-    <div class="modal fade" id="runningModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-body d-flex align-items-center gap-3">
-            <div class="spinner-border" role="status" aria-hidden="true"></div>
-            <div>
-              <h5 class="mb-1">Agente en ejecución…</h5>
-              <small class="text-muted">En unos momentos se mostrará el resultado, puede cerrar la ventana para continuar.
-              </small>
+    <div class="modal fade" id="runningModal" tabindex="-1"
+          aria-labelledby="runningModalLabel" aria-hidden="true"
+          data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+
+            <div class="modal-header border-0">
+              <h5 class="modal-title" id="runningModalLabel">Agente en ejecución…</h5>
+              <!-- X para cerrar -->
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
+
+            <div class="modal-body d-flex align-items-center gap-3">
+              <div class="spinner-border" role="status" aria-hidden="true"></div>
+              <div>
+                <p class="mb-1">En unos momentos se mostrará el resultado.</p>
+                <small class="text-muted">Puedes cerrar esta ventana con la X y seguir navegando.</small>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
-    </div>
+
 
     <!-- Modal de confirmación al ejecutar agente -->
     <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
@@ -296,6 +306,7 @@
     }
 
     async function runAgent() {
+      const runBtn   = document.getElementById('runBtn');
       const agente   = document.getElementById('agenteSelect').value;
       const pregunta = document.getElementById('preguntaSelect').value;
       const custom   = document.getElementById('customPrompt').value;
@@ -305,8 +316,8 @@
         return;
       }
 
-      // Mostrar modal "Ejecutando..."
       const runningModal = new bootstrap.Modal(document.getElementById('runningModal'));
+      runBtn.disabled = true;
       runningModal.show();
 
       try {
@@ -315,34 +326,87 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Accept': 'application/json'
           },
           body: JSON.stringify({ prompt_manual: custom })
         });
 
+        if (!res.ok) {
+          const errBody = await res.text().catch(()=>'');
+          throw new Error(`HTTP ${res.status} ${res.statusText} ${errBody}`);
+        }
+
         const data = await res.json();
-        // Cerrar modal "Ejecutando..."
+
+        // NUEVO FLUJO ASÍNCRONO: el backend devuelve job_id
+        if (!data.resultado_id) {
+          throw new Error(data.error || 'No se recibió resultado_id');
+        }
+
+        // SIEMPRE: espera a que termine consultando /run/status/<resultado_id>/
+        const resultadoId = await waitForCompletion(data.resultado_id);
+
         runningModal.hide();
 
+        // Mostrar modal de éxito y habilitar enlace de evaluación
+        const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+        successModal.show();
+
+        const evalLink = document.getElementById('evaluarAgenteLink');
+        if (evalLink && resultadoId) {
+          evalLink.classList.remove('disabled');
+          evalLink.href = `/resultados/${resultadoId}/`;
+        }
+
+        // COMPAT: si el backend sigue siendo síncrono y devuelve resultado_id
         if (data.resultado_id) {
-          // Mostrar modal de éxito
+          runningModal.hide();
           const successModal = new bootstrap.Modal(document.getElementById('successModal'));
           successModal.show();
 
-          // Habilitar enlace "Evaluar Agente" para el resultado recién creado
           const evalLink = document.getElementById('evaluarAgenteLink');
           if (evalLink) {
             evalLink.classList.remove('disabled');
             evalLink.href = `/resultados/${data.resultado_id}/`;
           }
-        } else {
-          alert(data.error || "Hubo un error ejecutando el agente.");
+          return;
         }
+
+        throw new Error(data.error || 'Respuesta inesperada del servidor');
+
       } catch (err) {
-        runningModal.hide();
         console.error(err);
-        alert("Error de conexión al ejecutar el agente.");
+        runningModal.hide();
+        alert(`Error ejecutando el agente: ${err.message}`);
+      } finally {
+        runBtn.disabled = false;
       }
+    }
+
+    // Polling del estado del job hasta terminar
+    async function waitForCompletion(resultadoId) {
+      const maxWaitMs = 10 * 60 * 1000; // 10 min
+      const start = Date.now();
+      let delay = 2000;
+
+      while (Date.now() - start < maxWaitMs) {
+        const r = await fetch(`/run/status/${resultadoId}/`, { headers: { 'Accept': 'application/json' }});
+        if (!r.ok) throw new Error(`Estado HTTP ${r.status}`);
+
+        const s = await r.json();
+        // Backend: status = 'pending' | 'in_progress' | 'completed' | 'error'
+        if (s.status === 'completed') {
+          return s.resultado_id;
+        }
+        if (s.status === 'error') {
+          throw new Error(s.error || 'El agente falló');
+        }
+
+        await new Promise(res => setTimeout(res, delay));
+        if (delay < 5000) delay += 500;
+      }
+      throw new Error('Timeout esperando a que termine el agente');
     }
 
     async function savePrompt() {

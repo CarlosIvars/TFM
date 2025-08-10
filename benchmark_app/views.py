@@ -95,6 +95,33 @@ def _run_agente_job(resultado_id: int, prompt: str, agente_id: int):
         resultado.respuesta = f"Error: {e}"
         resultado.save(update_fields=["estado", "respuesta"])
 
+@api_view(["GET"])
+def run_status(request, resultado_id: int):
+    """
+    Devuelve el estado de la ejecución basada en Resultado.
+    status: 'pending' | 'in_progress' | 'completed' | 'error'
+    progreso: opcional (0-100) si podemos estimarlo
+    """
+    r = get_object_or_404(Resultado.objects.select_related('pregunta__caso_uso'), id=resultado_id)
+
+    # Progreso aproximado (opcional): % de acciones vs pasos esperados
+    progreso = None
+    try:
+        total_pasos = 0
+        if r.pregunta and r.pregunta.caso_uso and r.pregunta.caso_uso.pasos_esperados:
+            total_pasos = len(json.loads(r.pregunta.caso_uso.pasos_esperados or "[]"))
+        if total_pasos and r.n_acciones_realizadas is not None:
+            progreso = max(0, min(100, int((r.n_acciones_realizadas / total_pasos) * 100)))
+    except Exception:
+        progreso = None
+
+    payload = {
+        "status": r.estado or "pending",
+        "resultado_id": r.id,              # lo incluimos SIEMPRE
+        "progreso": progreso,
+        "error": r.respuesta if r.estado == "error" else None,
+    }
+    return JsonResponse(payload, status=200)
 
 @api_view(["POST"])
 def run_agente(request, pregunta_id, agente_id):
