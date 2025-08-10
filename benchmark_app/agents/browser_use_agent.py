@@ -66,7 +66,8 @@ class BrowserUseAgent:
                 openai_api_version=os.environ["AZURE_OPENAI_VERSION"],
                 azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
                 openai_api_key=os.environ["AZURE_OPENAI_KEY"],
-                temperature=0.0
+                temperature=0.0,
+                max_retries=30
             )
         else:
             print("DEBUG: Usando OpenAI directo")

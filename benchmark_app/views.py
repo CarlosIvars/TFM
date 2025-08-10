@@ -8,7 +8,9 @@ from .models import (
     Categoria, CasoUso, Agente, Pregunta,
     Resultado, PreguntaEvaluacion, Evaluacion, RespuestaEvaluacion
 )
-from .llm_eval.evaluator import evaluar_resultado_llm
+# from .llm_eval.evaluator import evaluar_resultado_llm
+from .llm_eval.evaluator import evaluar_llm_sobre_pasos_y_satisfaccion
+
 from .llm_eval import metricas
 import json
 import os
@@ -59,41 +61,75 @@ def poblar_casos_uso_desde_json(request):
             resumen.append(f"Ya existía: {nombre_categoria} - {titulo}")
     return HttpResponse("<br>".join(resumen))
 
+
 @api_view(["POST"])
 def run_agente(request, pregunta_id, agente_id):
     from benchmark_app.agents.browser_use_agent import BrowserUseAgent
-    data = request.data
-    prompt_manual = data.get("prompt_manual", "")
 
+    # 1) Datos de entrada
+    data = getattr(request, "data", {}) or {}
+    prompt_manual = (data.get("prompt_manual") or "").strip()
+
+    # 2) Cargar agente
     agente = get_object_or_404(Agente, id=agente_id)
 
-    if int(pregunta_id) == 0:
-        pregunta = None
-        prompt = prompt_manual.strip()
-        if not prompt:
-            return Response({"error": "Prompt personalizado vacío"}, status=400)
-    else:
-        pregunta = get_object_or_404(Pregunta, id=pregunta_id)
-        prompt = prompt_manual.strip() if prompt_manual.strip() else pregunta.texto
+    # 3) Resolver pregunta y prompt
+    pregunta_obj = None
+    if int(pregunta_id) != 0:
+        # Hay pregunta seleccionada
+        pregunta_obj = get_object_or_404(Pregunta, id=pregunta_id)
 
-    agente_runner = BrowserUseAgent(llm_model=agente.modelo_llm)
-    resultado_dict = agente_runner.run_case(prompt)
-    print('Resultado del agente:', resultado_dict)
-    acciones = resultado_dict.get("acciones_realizadas") or []
+    if pregunta_obj:
+        # Si hay pregunta, el prompt es el manual si viene, si no el texto de la pregunta
+        prompt = prompt_manual or pregunta_obj.texto
+    else:
+        # Prompt libre: debe venir relleno
+        if not prompt_manual:
+            return Response({"error": "Prompt personalizado vacío"}, status=400)
+        prompt = prompt_manual
+
+    # 4) Crear Resultado en 'pending'
     resultado = Resultado.objects.create(
         agente=agente,
-        pregunta=pregunta,
-        respuesta=resultado_dict.get('respuesta') or '',
-        logs=resultado_dict.get('logs', ''),
-        tiempo_total_seg=resultado_dict.get("tiempo_total_seg"),
-        acciones_realizadas=acciones,
-        n_acciones_realizadas=len(acciones),
-        cpu_usado=resultado_dict.get("cpu_usado"),
-        ram_usada_mb=resultado_dict.get("ram_usada_mb"),
-        porcentaje_pasos_ok=resultado_dict.get("porcentaje_pasos_ok"),
+        pregunta=pregunta_obj,   # <- IMPORTANTE: None o instancia de Pregunta, nunca ""
+        estado="pending",
+        respuesta="",
+        logs="",
     )
 
-    return Response({"message": "Ejecución completada", "resultado_id": resultado.id})
+    try:
+        # 5) Marcar 'in_progress'
+        resultado.estado = "in_progress"
+        resultado.save(update_fields=["estado"])
+
+        # 6) Ejecutar agente
+        agente_runner = BrowserUseAgent(llm_model=agente.modelo_llm)
+        resultado_dict = agente_runner.run_case(prompt)
+
+        acciones = resultado_dict.get("acciones_realizadas") or []
+
+        # 7) Guardar resultados + 'completed'
+        Resultado.objects.filter(pk=resultado.pk).update(
+            respuesta=resultado_dict.get("respuesta") or "",
+            logs=resultado_dict.get("logs", ""),
+            tiempo_total_seg=resultado_dict.get("tiempo_total_seg"),
+            acciones_realizadas=acciones,
+            n_acciones_realizadas=len(acciones),
+            cpu_usado=resultado_dict.get("cpu_usado"),
+            ram_usada_mb=resultado_dict.get("ram_usada_mb"),
+            porcentaje_pasos_ok=resultado_dict.get("porcentaje_pasos_ok"),
+            estado="completed",
+        )
+
+        return Response({"message": "Ejecución completada", "resultado_id": resultado.id})
+
+    except Exception as e:
+        # 8) Marcar 'error' y guardar el motivo en 'respuesta'
+        Resultado.objects.filter(pk=resultado.pk).update(
+            estado="error",
+            respuesta=f"Error: {e}",
+        )
+        return Response({"error": f"Fallo ejecutando el agente: {e}"}, status=500)
 
 @api_view(["GET", "POST"])
 def api_preguntas_por_caso(request, caso_id):
@@ -325,8 +361,9 @@ def metricas_view(request):
     print("Métricas calculadas:", context)
     return render(request, 'benchmark_app/metricas.html', context)
 
-@api_view(["GET"])
-def evaluar_llm_view(request, resultado_id):
+@api_view(["GET", "POST"])
+def evaluar_llm_viewagg(request, resultado_id):
+    print("Evaluando LLM para resultado:", resultado_id)
     resultado = get_object_or_404(Resultado, id=resultado_id)
 
     if resultado.pregunta is None:
@@ -376,3 +413,98 @@ def evaluar_llm_view(request, resultado_id):
             pass
 
     return JsonResponse({"ok": True, "respuestas": output_dict}, status=200)
+
+def _norm(s: str) -> str:
+    # normalización suave por si quieres homogeneizar
+    return (s or "").strip()
+
+def _to_int_or_none(s: str):
+    try:
+        return int(str(s).strip())
+    except Exception:
+        return None
+    
+
+@api_view(["GET", "POST"])
+def evaluar_llm_view(request, resultado_id):
+    """
+    Hace EXACTAMENTE lo mismo que 'resultado_view' (humano) pero con LLM:
+    - Crea/asegura PreguntaEvaluacion para cada paso y la de satisfacción.
+    - Pregunta al LLM sí/no por cada paso + satisfacción 1..5.
+    - Crea Evaluacion(tipo='llm') y guarda todas las RespuestaEvaluacion.
+    """
+    resultado = get_object_or_404(Resultado, id=resultado_id)
+
+    if resultado.pregunta is None:
+        return JsonResponse({"error": "Este resultado no tiene 'pregunta' asociada."}, status=400)
+
+    caso_uso = resultado.pregunta.caso_uso
+
+    # Pasos esperados (lista)
+    try:
+        pasos_esperados = json.loads(caso_uso.pasos_esperados or "[]")
+    except Exception:
+        pasos_esperados = []
+
+    # 1) Asegurar PreguntaEvaluacion para cada paso (igual que humano)
+    for i, paso in enumerate(pasos_esperados):
+        PreguntaEvaluacion.objects.get_or_create(
+            caso_uso=caso_uso,
+            texto=paso,
+            defaults={'orden': i}
+        )
+
+    # 2) Asegurar la pregunta de satisfacción (igual que humano)
+    texto_sat = "Nivel de satisfacción global del agente (1-5)"
+    PreguntaEvaluacion.objects.get_or_create(
+        caso_uso=caso_uso,
+        texto=texto_sat,
+        defaults={'orden': len(pasos_esperados)}
+    )
+
+    # 3) Llamar al LLM para obtener respuestas
+    pasos_vals, satisfaccion = evaluar_llm_sobre_pasos_y_satisfaccion(
+        respuesta_agente=resultado.respuesta or "",
+        logs=resultado.logs or "",
+        pasos=pasos_esperados
+    )
+
+    # 4) Crear Evaluacion tipo 'llm'
+    evaluacion = Evaluacion.objects.create(
+        resultado=resultado,
+        tipo='llm',
+        puntaje_global=satisfaccion,
+        comentario="Evaluación automática LLM"
+    )
+
+    # 5) Guardar una RespuestaEvaluacion por cada paso (igual que humano)
+    for i, paso in enumerate(pasos_esperados):
+        valor = pasos_vals[i]  # "si" o "no"
+        pe, _ = PreguntaEvaluacion.objects.get_or_create(
+            caso_uso=caso_uso,
+            texto=paso,
+            defaults={'orden': i}
+        )
+        RespuestaEvaluacion.objects.create(
+            evaluacion=evaluacion,
+            pregunta=pe,
+            valor=valor
+        )
+
+    # 6) Guardar respuesta de satisfacción (igual que humano)
+    pregunta_sat, _ = PreguntaEvaluacion.objects.get_or_create(
+        caso_uso=caso_uso,
+        texto=texto_sat,
+        defaults={'orden': len(pasos_esperados)}
+    )
+    RespuestaEvaluacion.objects.create(
+        evaluacion=evaluacion,
+        pregunta=pregunta_sat,
+        valor=str(satisfaccion)
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "pasos": pasos_vals,
+        "satisfaccion": satisfaccion
+    }, status=200)

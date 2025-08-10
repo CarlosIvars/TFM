@@ -1,100 +1,155 @@
-from langchain_openai import AzureChatOpenAI
-from langchain_core.output_parsers import PydanticOutputParser
-from pydantic import BaseModel, Field
-from typing import List
-import os
-import json
+# benchmark_app/llm_eval/evaluator.py
+import os, json
 
-# --- Carga segura del LLM de Azure OpenAI ---
+from langchain_openai import AzureChatOpenAI
+from langchain_core.messages import HumanMessage
+
+
 def _create_azure_llm():
-    missing = [k for k in ["AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_VERSION", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_KEY"] if not os.environ.get(k)]
-    if missing:
-        raise RuntimeError(f"Faltan variables de entorno para Azure OpenAI: {', '.join(missing)}")
+    # Variables necesarias: AZURE_OPENAI_DEPLOYMENT, AZURE_OPENAI_VERSION, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY
     return AzureChatOpenAI(
         azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT"],
         openai_api_version=os.environ["AZURE_OPENAI_VERSION"],
         azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
         openai_api_key=os.environ["AZURE_OPENAI_KEY"],
-        temperature=0
+        temperature=0,
+        max_retries=6,
+        request_timeout=90,
     )
 
-try:
-    _GLOBAL_LLM = _create_azure_llm()
-except Exception as e:
-    _GLOBAL_LLM = None  # Permitimos cargar el módulo sin romper, la vista lo controlará.
+
+def _extract_json_block(text: str):
+    """
+    Extrae el primer objeto JSON { ... } válido de 'text' sin regex recursivos.
+    Si no hay, lanza ValueError.
+    """
+    text = text.strip()
+    # 1) Intento directo
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+
+    # 2) Quitar fences ```...``` si los hubiera
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+        try:
+            return json.loads(text)
+        except Exception:
+            pass
+
+    # 3) Buscar el primer bloque balanceado
+    n = len(text)
+    i = 0
+    while i < n:
+        start = text.find("{", i)
+        if start == -1:
+            break
+        depth = 0
+        in_str = False
+        esc = False
+        j = start
+        while j < n:
+            c = text[j]
+            if in_str:
+                if esc:
+                    esc = False
+                elif c == "\\":
+                    esc = True
+                elif c == '"':
+                    in_str = False
+            else:
+                if c == '"':
+                    in_str = True
+                elif c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if depth == 0:
+                        candidate = text[start : j + 1]
+                        try:
+                            return json.loads(candidate)
+                        except Exception:
+                            break
+            j += 1
+        i = start + 1
+    raise ValueError("No se encontró JSON válido en la salida.")
 
 
-# --- Modelo del output del LLM ---
-class PreguntaEvaluacionOutput(BaseModel):
-    pregunta: str = Field(description="Texto de la pregunta evaluada")
-    respuesta: str = Field(description="Respuesta del LLM (sí, no o puntuación)")
-
-class EvaluacionLLMOutput(BaseModel):
-    respuestas: List[PreguntaEvaluacionOutput] = Field(description="Respuestas para cada pregunta de evaluación")
+def _norm_yes(x: str) -> str:
+    s = (x or "").strip().lower()
+    return "si" if s in {"si", "sí", "yes", "y", "true", "1"} else "no"
 
 
-# --- Prompt ---
-def build_prompt(result, pasos, logs, preguntas_evaluacion):
-    pasos = pasos or []
-    preguntas_evaluacion = preguntas_evaluacion or []
+def evaluar_llm_sobre_pasos_y_satisfaccion(*, respuesta_agente: str, logs: str, pasos: list[str]):
+    """
+    Devuelve (respuestas_pasos: List['si'|'no'], satisfaccion: int 1..5)
+    SIEMPRE devuelve len(pasos) respuestas y una satisfacción válida.
+    """
+    llm = _create_azure_llm()
 
-    pasos_fmt = "\n".join([f"{i+1}. {p}" for i, p in enumerate(pasos)])
-    preguntas_fmt = "\n".join([f"{i+1}. {p}" for i, p in enumerate(preguntas_evaluacion)])
+    k = len(pasos)
+    pasos_fmt = "\n".join(f"{i+1}. {p}" for i, p in enumerate(pasos))
 
-    return f"""
-Eres un evaluador automático de agentes web. Debes analizar la respuesta de un agente a una tarea, los logs de ejecución y los pasos esperados.
-Para cada pregunta de evaluación, responde únicamente "sí", "no" o proporciona una puntuación si la pregunta lo indica.
+    prompt = f"""
+Eres un evaluador automático. Lee la respuesta del agente, sus logs y los PASOS ESPERADOS.
+
+Debes contestar:
+1) Para CADA paso (hay exactamente {k}), responde solo "sí" o "no" según si el agente lo cumplió.
+2) Da un NIVEL DE SATISFACCIÓN GLOBAL 1–5 (entero).
+
+REGLAS:
+- Si no hay información suficiente sobre un paso, responde "no".
+- Si dudas en la satisfacción, responde 3.
+- Devuelve **JSON VÁLIDO** sin texto extra, con este formato EXACTO:
+{{
+  "pasos": ["sí" | "no", ... {k} elementos ...],
+  "satisfaccion": 1 | 2 | 3 | 4 | 5
+}}
 
 Respuesta del agente:
-\"\"\"{result or ""}\"\"\"
+\"\"\"{respuesta_agente or ""}\"\"\"
 
-Logs de ejecución:
+Logs:
 \"\"\"{logs or ""}\"\"\"
 
 Pasos esperados:
 {pasos_fmt}
-
-Preguntas de evaluación:
-{preguntas_fmt}
-
-Devuelve la respuesta en el siguiente formato JSON:
-{{
-  "respuestas": [
-    {{"pregunta": "PREGUNTA1", "respuesta": "sí/no/puntuación"}}
-  ]
-}}
-Asegúrate de que el JSON sea válido.
 """.strip()
 
+    msg = HumanMessage(content=prompt)
+    resp = llm.invoke([msg])
+    content = getattr(resp, "content", str(resp))
 
-# --- Evaluador LLM ---
-def evaluar_resultado_llm(result, pasos, logs, preguntas_evaluacion, llm=None):
-    """
-    Evalúa con LLM y devuelve un dict {pregunta: respuesta}.
-    """
-    _llm = llm or _GLOBAL_LLM
-    if _llm is None:
-        raise ValueError("LLM no configurado. Revisa variables de entorno AZURE_OPENAI_* o inicializa 'llm' al llamar.")
-
-    prompt_str = build_prompt(result, pasos, logs, preguntas_evaluacion)
-    parser = PydanticOutputParser(pydantic_object=EvaluacionLLMOutput)
-
-    # En LangChain con ChatOpenAI/AzureChatOpenAI, pasamos una lista de mensajes:
-    # Cada mensaje es (role, content) o un objeto de mensaje.
-    messages = [("human", prompt_str)]
-    resp = _llm.invoke(messages)              # resp.content es el texto
-    content = resp.content if hasattr(resp, "content") else str(resp)
-
-    # Intenta parsear con el parser; si falla, intenta json.loads
+    # Parse robusto
     try:
-        parsed = parser.parse(content)
-        output_dict = {item.pregunta: item.respuesta for item in parsed.respuestas}
-        return output_dict
+        data = _extract_json_block(content)
     except Exception:
-        # Fallback: intentar parseo JSON manual
-        try:
-            data = json.loads(content)
-            respuestas = data.get("respuestas", [])
-            return {item.get("pregunta", ""): item.get("respuesta", "") for item in respuestas if isinstance(item, dict)}
-        except Exception as e:
-            raise ValueError(f"No se pudo parsear la salida del LLM como JSON válido: {e}\nContenido:\n{content[:1000]}")
+        data = {}
+
+    pasos_out = data.get("pasos", [])
+    if not isinstance(pasos_out, list):
+        pasos_out = []
+
+    # Normaliza y garantiza longitud == k
+    pasos_out = [ _norm_yes(v) for v in pasos_out ]
+    if len(pasos_out) < k:
+        pasos_out += ["no"] * (k - len(pasos_out))
+    elif len(pasos_out) > k:
+        pasos_out = pasos_out[:k]
+
+    # Satisfacción
+    satisfaccion = data.get("satisfaccion", 3)
+    try:
+        satisfaccion = int(satisfaccion)
+    except Exception:
+        satisfaccion = 3
+    if satisfaccion < 1 or satisfaccion > 5:
+        satisfaccion = 3
+
+    return pasos_out, satisfaccion
