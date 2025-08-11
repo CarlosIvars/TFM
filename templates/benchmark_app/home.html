@@ -316,7 +316,8 @@
         return;
       }
 
-      const runningModal = new bootstrap.Modal(document.getElementById('runningModal'));
+      const runningModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('runningModal'));
+
       runBtn.disabled = true;
       runningModal.show();
 
@@ -350,7 +351,7 @@
         runningModal.hide();
 
         // Mostrar modal de éxito y habilitar enlace de evaluación
-        const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+        const successModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('successModal'));
         successModal.show();
 
         const evalLink = document.getElementById('evaluarAgenteLink');
@@ -358,11 +359,12 @@
           evalLink.classList.remove('disabled');
           evalLink.href = `/resultados/${resultadoId}/`;
         }
+        return;
 
         // COMPAT: si el backend sigue siendo síncrono y devuelve resultado_id
         if (data.resultado_id) {
           runningModal.hide();
-          const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+          const successModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('successModal'));
           successModal.show();
 
           const evalLink = document.getElementById('evaluarAgenteLink');
