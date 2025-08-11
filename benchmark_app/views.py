@@ -201,6 +201,7 @@ def api_resultados_list(request):
             "fecha_human": timesince(r.fecha) + " atrás" if r.fecha else "",
             "run_id": str(r.run_id),
         })
+    print(data)
     return Response(data)
 
 def resultados_list_view(request):
@@ -221,6 +222,7 @@ def api_resultado_detail(request, resultado_id):
     Devuelve el detalle mínimo de una ejecución, si necesitas usarlo por AJAX.
     """
     r = get_object_or_404(Resultado.objects.select_related('agente', 'pregunta'), id=resultado_id)
+    print(r.estado)
     return Response({
         "id": r.id,
         "estado": r.estado,

@@ -35,6 +35,7 @@ urlpatterns = [
     # API
     path('api/casos/', api_casos),
     path('api/agentes/', api_agentes),
+    path('api/resultados/', api_resultados_list, name='api_resultados_list'),
     path('api/casos/<int:caso_id>/preguntas/', api_preguntas_por_caso),
 
     # Lanzar ejecución (TU vista con threads)

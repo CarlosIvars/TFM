@@ -130,11 +130,21 @@ class BrowserUseAgent:
 
     async def async_run_task(self, task):
         print("DEBUG: Entrando en async_run_task()")
+        # agent = Agent(
+        #     task=task,
+        #     llm=self.llm,
+        #     browser_session=self.browser_session,
+        #     use_vision=self.use_vision,
+        # )
         agent = Agent(
             task=task,
             llm=self.llm,
             browser_session=self.browser_session,
-            use_vision=self.use_vision,
+            use_vision=False          # <- antes True
+            # enable_memory=False,       # <- desactiva memoria (acumula contexto)
+            # planner_llm=None,          # <- desactiva planner
+            # max_input_tokens=110_000,  # <- deja margen para tools (~10–18k)
+            # max_actions_per_step=6,    # <- evita listas de acciones largas por step
         )
         print("DEBUG: Agent creado, lanzando run()")
         await agent.run()
