@@ -187,7 +187,7 @@ def api_resultados_list(request):
     """
     Devuelve todas las ejecuciones (Resultado).
     """
-    qs = Resultado.objects.select_related('agente', 'pregunta').order_by('-fecha')
+    qs = Resultado.objects.select_related('agente', 'pregunta__caso_uso', 'pregunta__caso_uso__categoria').order_by('-fecha')
     data = []
     for r in qs:
         data.append({
@@ -196,13 +196,17 @@ def api_resultados_list(request):
             "agente_id": r.agente_id,
             "agente_nombre": getattr(r.agente, 'nombre', str(r.agente)),
             "pregunta_id": r.pregunta_id,
+            "pregunta_texto": r.pregunta.texto if r.pregunta else None,
             "pregunta_preview": (r.pregunta.texto[:60] + '...') if r.pregunta and r.pregunta.texto else None,
+            "caso_uso_id": r.pregunta.caso_uso_id if r.pregunta else None,
+            "caso_uso_titulo": r.pregunta.caso_uso.titulo if r.pregunta else None,
+            "categoria_nombre": r.pregunta.caso_uso.categoria.nombre if r.pregunta else None,
             "fecha": r.fecha.isoformat(),
             "fecha_human": timesince(r.fecha) + " atrás" if r.fecha else "",
             "run_id": str(r.run_id),
         })
-    print(data)
     return Response(data)
+
 
 def resultados_list_view(request):
     """
