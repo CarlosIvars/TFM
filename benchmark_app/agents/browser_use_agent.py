@@ -40,7 +40,7 @@ Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
 // chrome runtime stub
 window.chrome = { runtime: {} };
 // Idiomas coherentes
-Object.defineProperty(navigator, 'languages', { get: () => ['es-ES','es'] });
+Object.defineProperty(navigator, 'languages', { get: () => ['es-ES','es','en'] });
 Object.defineProperty(navigator, 'language',  { get: () => 'es-ES' });
 // Plataforma típica desktop
 Object.defineProperty(navigator, 'platform',  { get: () => 'Win32' });
@@ -65,17 +65,53 @@ if (origQuery) {
 """
 
 def limitar_prompt_tokens(prompt, model="gpt-4o", max_tokens=12000):
-    if model == "gpt-4o":
+    if model in {"gpt-4o","gpt-4.1","gpt-4o-mini","gpt-4.1-mini"}:
         encoding = tiktoken.get_encoding("cl100k_base")
     else:
         try:
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:
             encoding = tiktoken.get_encoding("cl100k_base")
-    tokens = encoding.encode(prompt)
+    tokens = encoding.encode(prompt or "")
     if len(tokens) > max_tokens:
         prompt = encoding.decode(tokens[:max_tokens])
     return prompt
+
+
+def _parse_proxy_from_env():
+    """
+    Devuelve ProxySettings para Playwright desde HTTPS_PROXY/HTTP_PROXY.
+    Acepta http(s)/socks5://user:pass@host:port o el string tal cual.
+    """
+    import re
+    url = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+    if not url:
+        return None
+    m = re.match(r'^(?P<scheme>https?|socks5)://(?:(?P<user>[^:@]+):(?P<pass>[^@]+)@)?(?P<host>[^:/]+)(?::(?P<port>\d+))?$', url)
+    if not m:
+        return {"server": url}
+    d = m.groupdict()
+    server = f"{d['scheme']}://{d['host']}" + (f":{d['port']}" if d.get("port") else "")
+    out = {"server": server}
+    if d.get("user"):
+        out["username"] = d["user"]
+    if d.get("pass"):
+        out["password"] = d["pass"]
+    return out
+
+
+def _build_avoid_google_msg():
+    """
+    Mensaje para el sistema que desaconseja usar Google y propone Bing/DDG.
+    Se puede sobreescribir con AVOID_GOOGLE_MSG.
+    """
+    return os.getenv("AVOID_GOOGLE_MSG") or (
+        "Reglas de navegación y búsqueda:\n"
+        "- Evita Google y la acción 'search_google' salvo que el usuario lo pida explícitamente.\n"
+        "- Usa Bing (https://www.bing.com) o DuckDuckGo (https://duckduckgo.com) para buscar.\n"
+        "- Si ves 'sorry', 'captcha' o reCAPTCHA, cambia de buscador o visita URLs candidatas directamente.\n"
+        "- Evita recargar en bucle; usa pausas breves, como lo haría un usuario real."
+    )
 
 
 class BrowserUseAgent:
@@ -96,14 +132,15 @@ class BrowserUseAgent:
         headless = os.getenv("HEADLESS", "true").lower() in ("1", "true", "yes")
         # Si tienes Google Chrome instalado en el server, usa 'chrome'; si no, deja 'chromium'
         channel = os.getenv("BROWSER_CHANNEL", "chromium")
-        # Proxy residencial opcional por env (HTTP_PROXY o HTTPS_PROXY)
-        proxy_url = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or None
 
+        # UA realista (evita UA headless)
         ua = os.getenv("BROWSER_UA") or (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
+            "Chrome/125.0.0.0 Safari/537.36"
         )
+
+        proxy = _parse_proxy_from_env()
 
         profile = BrowserProfile(
             # Render/headless
@@ -123,16 +160,16 @@ class BrowserUseAgent:
             # Headers/UA coherentes
             user_agent=ua,
             extra_http_headers={
-                "Accept-Language": "es-ES,es;q=0.9"
+                "Accept-Language": "es-ES,es;q=0.9,en;q=0.8"
             },
 
             # Perfil persistente
             user_data_dir=os.path.expanduser('~/.config/browseruse/profiles/default'),
 
-            # Evita navegar como un clic-bot (más pausa entre acciones)
-            wait_between_actions=1.0,
+            # Pausas entre acciones para no parecer un bot
+            wait_between_actions=float(os.getenv("WAIT_BETWEEN_ACTIONS", "1.5")),
 
-            # Quita solo flags cantosas (mantén el resto por estabilidad)
+            # Quita flags cantosas (mantén el resto por estabilidad)
             ignore_default_args=[
                 '--enable-automation',
                 '--disable-extensions',
@@ -144,9 +181,8 @@ class BrowserUseAgent:
             viewport_expansion=-1,
         )
 
-        if proxy_url:
-            # playwright ProxySettings: {"server": "http://host:port", "username": "...", "password": "..."}
-            profile.proxy = {"server": proxy_url}
+        if proxy:
+            profile.proxy = proxy
 
         return profile
 
@@ -214,37 +250,53 @@ class BrowserUseAgent:
             "final_result": final_result,
         }
 
+    async def _bootstrap_context_with_stealth(self):
+        """
+        Crea página/contexto y añade el script stealth *antes* de la primera navegación.
+        """
+        try:
+            page = await self.browser_session.get_current_page()  # fuerza context/page
+            ctx = self.browser_session.browser_context
+            if ctx:
+                await ctx.add_init_script(STEALTH_JS)
+                logging.getLogger("browser").info("🔒 Stealth init script inyectado al crear el contexto.")
+        except Exception as e:
+            logging.getLogger("browser").warning(f"No se pudo inyectar STEALTH_JS en bootstrap: {e}")
+
     async def _on_step_start_stealth(self, agent_obj: Agent):
-        """Hook: se ejecuta antes de cada step. Inyecta stealth 1 sola vez."""
+        """Hook redundante por si el contexto se recrea durante la sesión."""
         try:
             if not getattr(agent_obj, "_stealth_injected", False):
                 ctx = agent_obj.browser_session.browser_context
                 if ctx is not None:
                     await ctx.add_init_script(STEALTH_JS)
                     agent_obj._stealth_injected = True
-                    logging.getLogger("browser").info("🔒 Stealth init script inyectado en el contexto.")
+                    logging.getLogger("browser").info("🔒 Stealth init script inyectado en on_step_start.")
         except Exception as e:
             logging.getLogger("browser").warning(f"No se pudo inyectar stealth: {e}")
 
     async def async_run_task(self, task):
         print("DEBUG: Entrando en async_run_task()")
 
-        # Ajustes de agente: usa_vision=False (evita subir imágenes) y
-        # puedes desactivar memoria/planner si quieres minimizar contexto.
+        # Bootstrap de contexto con stealth antes del primer request
+        await self._bootstrap_context_with_stealth()
+
+        # Ajustes del agente: evita Google, sin memoria ni planner (menos llamadas)
         agent = Agent(
             task=task,
             llm=self.llm,
             browser_session=self.browser_session,
-            use_vision=self.use_vision,     # por defecto False aquí
-            # enable_memory=False,
-            # planner_llm=None,
+            use_vision=self.use_vision,          # por defecto False aquí
+            enable_memory=False,
+            planner_llm=None,
+            extend_system_message=_build_avoid_google_msg(),
             # max_input_tokens=110_000,
             # max_actions_per_step=6,
         )
 
         print("DEBUG: Agent creado, lanzando run()")
         await agent.run(
-            on_step_start=self._on_step_start_stealth,  # stealth antes del primer step
+            on_step_start=self._on_step_start_stealth,
         )
 
         run_data = self._extract_run_data(agent)
@@ -303,9 +355,9 @@ class BrowserUseAgent:
 if __name__ == "__main__":
     print("DEBUG: MAIN ejecutando ejemplo de uso")
     agent = BrowserUseAgent(
-        llm_model='gpt-4.1-nano-2025-04-14',
-        use_azure=True,
-        use_vision=False
+        llm_model=os.getenv("LLM_MODEL", "gpt-4o"),
+        use_azure=(os.getenv("USE_AZURE","true").lower() in ("1","true","yes")),
+        use_vision=(os.getenv("USE_VISION","false").lower() in ("1","true","yes")),
     )
     prompt = "go to https://en.wikipedia.org/wiki/Banana and navigate to Quantum mechanics"
     res = agent.run_case(prompt)
