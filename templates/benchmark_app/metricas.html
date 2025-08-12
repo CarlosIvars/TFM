@@ -18,6 +18,7 @@
       text-align: center;
     }
     .panel { background: white; border-radius: 8px; box-shadow: 0 0 8px rgba(0,0,0,0.05); }
+    .case-title { font-weight: 600; margin-bottom: .5rem; }
   </style>
 </head>
 <body>
@@ -28,11 +29,13 @@
       <a href="/admin/login/?next=/admin/" class="btn btn-outline-light">Admin</a>
     </div>
   </nav>
+
   <div class="container">
     <div class="header">
       <h1 class="h3">Métricas de Agentes</h1>
       <p class="mb-0">Visión general del rendimiento y satisfacción de cada agente.</p>
     </div>
+
     <!-- Tabs de navegación -->
     <ul class="nav nav-tabs mb-4">
       <li class="nav-item">
@@ -46,6 +49,7 @@
       </li>
     </ul>
 
+    <!-- Desempeño por Categoría (promedio global) -->
     <h4 class="mb-3">Desempeño por Categoría</h4>
     <div class="panel p-3 mb-4">
       <canvas id="chartCategoria" width="600" height="300"></canvas>
@@ -55,23 +59,33 @@
     <div class="mb-3">
       <div class="btn-group" role="group" aria-label="Categorías">
         {% for cat in categorias_data.categorias %}
-          <button type="button" class="btn btn-outline-primary category-btn {% if forloop.first %}active{% endif %}" 
-            data-categoria="{{ cat }}">{{ cat }}</button>
+          <button type="button"
+                  class="btn btn-outline-primary category-btn {% if forloop.first %}active{% endif %}"
+                  data-categoria="{{ cat }}">{{ cat }}</button>
         {% endfor %}
       </div>
     </div>
 
-    <!-- Gráficas de casos de uso por categoría -->
-  
+    <!-- NEW: Desempeño por agente y caso de uso (tablas por caso, eje X = pasos esperados/preguntas) -->
     {% for cat in categorias_data.categorias %}
       <div class="category-cases" data-categoria="{{ cat }}" style="{% if not forloop.first %}display:none;{% endif %}">
         <h5 class="mt-4 mb-2">Desempeño por agente y caso de uso ({{ cat }})</h5>
-        <div class="panel p-3 mb-4">
-          <canvas id="groupedCaseChart_{{ cat|slugify }}" width="1200" height="400"></canvas>
-        </div>
+
+        {% with lista=case_steps_by_cat|get_item:cat %}
+          {% if lista %}
+            {% for c in lista %}
+              <div class="panel p-3 mb-4">
+                <div class="case-title">{{ c.caso_titulo }}</div>
+                <small class="text-muted d-block mb-2">Porcentaje de pasos completados por pregunta (Humano vs LLM)</small>
+                <canvas id="caseStepsChart_{{ c.caso_id }}" width="1200" height="360"></canvas>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-muted">No hay datos para esta categoría.</div>
+          {% endif %}
+        {% endwith %}
       </div>
     {% endfor %}
-
 
     <!-- Satisfacción global -->
     <h4 class="mt-5 mb-3">Satisfacción de Usuarios vs Evaluación LLM</h4>
@@ -107,76 +121,24 @@
   </div>
 
   <!-- Scripts de gráficas -->
-<!-- Scripts de gráficas -->
-<!-- Scripts de gráficas -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
-<script>
-  // Gráfica por categoría
-  new Chart(document.getElementById('chartCategoria').getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: {{ categorias_data.labels_json|safe }},
-      datasets: [
-        {
-          label: 'Humano',
-          data: {{ categorias_data.hum_data_json|safe }},
-          backgroundColor: 'rgba(54, 162, 235, 0.7)',
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 1
-        },
-        {
-          label: 'LLM',
-          data: {{ categorias_data.llm_data_json|safe }},
-          backgroundColor: 'rgba(255, 159, 64, 0.7)',
-          borderColor: 'rgba(255, 159, 64, 1)',
-          borderWidth: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        title: { display: true, text: 'Desempeño promedio por Categoría' }
-      },
-      scales: {
-        y: { beginAtZero: true, max: 100, title: { display: true, text: '% de pasos cumplidos' } },
-        x: { title: { display: true, text: 'Categoría' }, ticks: { maxRotation: 45, minRotation: 45 } }
-      }
-    }
-  });
-
-  
-
-  // Cambio de categoría con los botones
-  document.querySelectorAll('.category-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const cat = btn.dataset.categoria;
-      document.querySelectorAll('.category-cases').forEach(div => {
-        div.style.display = div.dataset.categoria === cat ? 'block' : 'none';
-      });
-    });
-  });
-
-  // Satisfacción global por agente
-  (function() {
-    const ctxSat = document.getElementById('chartSatisfaccion').getContext('2d');
-    new Chart(ctxSat, {
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+  <script>
+    // ===== Chart: Desempeño por Categoría =====
+    new Chart(document.getElementById('chartCategoria').getContext('2d'), {
       type: 'bar',
       data: {
-        labels: {{ satisfaccion_data.labels_json|safe }},
+        labels: {{ categorias_data.labels_json|safe }},
         datasets: [
           {
-            label: 'Valoración Usuarios',
-            data: {{ satisfaccion_data.hum_data_json|safe }},
+            label: 'Humano',
+            data: {{ categorias_data.hum_data_json|safe }},
             backgroundColor: 'rgba(54, 162, 235, 0.7)',
             borderColor: 'rgba(54, 162, 235, 1)',
             borderWidth: 1
           },
           {
-            label: 'Valoración LLM',
-            data: {{ satisfaccion_data.llm_data_json|safe }},
+            label: 'LLM',
+            data: {{ categorias_data.llm_data_json|safe }},
             backgroundColor: 'rgba(255, 159, 64, 0.7)',
             borderColor: 'rgba(255, 159, 64, 1)',
             borderWidth: 1
@@ -186,28 +148,123 @@
       options: {
         responsive: true,
         plugins: {
-          title: {
-            display: true,
-            text: 'Satisfacción Promedio por Agente (Usuarios vs LLM)'
-          }
+          title: { display: true, text: 'Desempeño promedio por Categoría' }
         },
         scales: {
-          y: {
-            beginAtZero: true,
-            max: 5,
-            title: {
-              display: true,
-              text: 'Puntuación (1-5)'
-            }
-          },
-          x: {
-            title: {
-              display: true,
-              text: 'Agente'
-            }
-          }
+          y: { beginAtZero: true, max: 100, title: { display: true, text: '% de pasos cumplidos' } },
+          x: { title: { display: true, text: 'Categoría' }, ticks: { maxRotation: 45, minRotation: 45 } }
         }
       }
     });
-  })();
-</script>
+
+    // Toggle de categorías (muestra/oculta los bloques por categoría)
+    document.querySelectorAll('.category-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const cat = btn.dataset.categoria;
+        document.querySelectorAll('.category-cases').forEach(div => {
+          div.style.display = (div.dataset.categoria === cat) ? 'block' : 'none';
+        });
+      });
+    });
+
+    // ===== Chart: Satisfacción global (Usuarios vs LLM) =====
+    (function() {
+      const ctxSat = document.getElementById('chartSatisfaccion').getContext('2d');
+      new Chart(ctxSat, {
+        type: 'bar',
+        data: {
+          labels: {{ satisfaccion_data.labels_json|safe }},
+          datasets: [
+            {
+              label: 'Valoración Usuarios',
+              data: {{ satisfaccion_data.hum_data_json|safe }},
+              backgroundColor: 'rgba(54, 162, 235, 0.7)',
+              borderColor: 'rgba(54, 162, 235, 1)',
+              borderWidth: 1
+            },
+            {
+              label: 'Valoración LLM',
+              data: {{ satisfaccion_data.llm_data_json|safe }},
+              backgroundColor: 'rgba(255, 159, 64, 0.7)',
+              borderColor: 'rgba(255, 159, 64, 1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: 'Satisfacción Promedio por Agente (Usuarios vs LLM)'
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 5,
+              title: {
+                display: true,
+                text: 'Puntuación (1-5)'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Agente'
+              }
+            }
+          }
+        }
+      });
+    })();
+
+    // ===== Charts por Caso de Uso (por categoría) =====
+    const caseStepsByCat = {{ case_steps_by_cat_json|safe }};
+    for (const [cat, cases] of Object.entries(caseStepsByCat || {})) {
+      (cases || []).forEach(c => {
+        const el = document.getElementById(`caseStepsChart_${c.caso_id}`);
+        if (!el) return;
+        const ctx = el.getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: c.labels,
+            datasets: [
+              {
+                label: 'Humano',
+                data: c.hum,
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1,
+                stack: 'stack1'
+              },
+              {
+                label: 'LLM',
+                data: c.llm,
+                backgroundColor: 'rgba(255, 159, 64, 0.7)',
+                borderColor: 'rgba(255, 159, 64, 1)',
+                borderWidth: 1,
+                stack: 'stack1'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              title: { display: true, text: 'Porcentaje de pasos completados por pregunta' },
+              tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+              x: { stacked: true, ticks: { maxRotation: 40, minRotation: 0 } },
+              y: { stacked: true, beginAtZero: true, max: 100, title: { display: true, text: '% completado' } }
+            }
+          }
+        });
+      });
+    }
+  </script>
+</body>
+</html>
